@@ -1,0 +1,5 @@
+build*/
+__pycache__/
+.ruff_cache/
+SIMON65/
+*.swp

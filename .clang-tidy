@@ -1,0 +1,92 @@
+# Static analysis for simon65.  Run with `cmake --build build --target tidy`;
+# it is expected to be clean, so read the exit status.
+#
+# The suppressions are about writing for a 6502 rather than about taste:
+#
+#   FixedAddressDereference (x2)   hardware registers are literal addresses
+#   performance-no-int-to-ptr      28-bit addresses are integers by necessity
+#   portability-no-assembler       the MOD driver and the IRQ door are asm
+#   portability-avoid-pragma-once  one compiler, and it supports the pragma
+#   non-private-member-variables   plain data with a derived accessor beside
+#                                  it, which the check reads as a class with
+#                                  public fields.  Hiding them would mean an
+#                                  accessor per field on a machine where each
+#                                  one costs bytes, to hide nothing.
+#
+# Three checks are off because they are wrong for this tree rather than because
+# the findings were unwelcome, and each was run before being dropped:
+#
+#   readability-braces-around-statements  403 findings, all of them the house
+#     style.  This tree omits braces on a single statement and does so
+#     consistently; the check encodes twp65's taste, not a defect here.
+#   bugprone-signed-bitwise  154 findings, of which two were real: a uint8_t
+#     shifted left by 8 promotes to a *signed* 16-bit int and overflows for any
+#     byte above 127 (fixed in fat32.hpp:53 and hitareas.hpp:110; far.hpp:86 and
+#     gamedb.hpp:13 already widened).  The other 152 are ordinary promotion in
+#     byte packing, which 8-bit code cannot avoid.  Worth a sweep by hand after
+#     new packing code: clang-tidy -p build --checks='-*,bugprone-signed-bitwise'
+#     src/main.cpp, then read the left shifts of 8 or more.
+#   misc-anonymous-namespace-in-header  the program is one translation unit by
+#     design (main.cpp:3), and no host test includes either header, so the copy
+#     per TU the check warns about cannot happen.
+#   misc-no-recursion  the script bytecode has no stack of its own, so a
+#     subroutine that starts another is a C++ recursion and the engine's is
+#     too (subroutine.cpp:523).  The check now fires because run_script carries
+#     a never-taken call that closes the cycle for the compiler -- which is the
+#     point, and which clang-tidy seeing it is the confirmation of.
+#
+# misc-const-correctness analyses pointers wrongly here and the option is off:
+# it asks for a const pointee on far_read's out-parameter (far.hpp:53), whose
+# bytes DMA writes rather than the C++, and on target_hooks.hpp:279, which is
+# written through on the next line.  Values and references it gets right.
+#
+# The narrowing and widening checks are excluded because -Wconversion covers
+# them at compile time, where on a 16-bit-int target they are a size tool
+# rather than a style one.
+#
+# Only the target ring is linted.  src/main.cpp is the program's one
+# translation unit and every other header comes in through it; the host tests
+# and the loader are built by add_custom_command and so have no entry in the
+# compile database.
+
+Checks: >
+  bugprone-*,
+  clang-analyzer-*,
+  performance-*,
+  portability-*,
+  misc-*,
+  readability-identifier-naming,
+  readability-misleading-indentation,
+  readability-inconsistent-declaration-parameter-name,
+  readability-redundant-control-flow,
+  -clang-analyzer-optin.core.FixedAddressDereference,
+  -clang-analyzer-core.FixedAddressDereference,
+  -performance-no-int-to-ptr,
+  -portability-no-assembler,
+  -portability-avoid-pragma-once,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-signed-bitwise,
+  -bugprone-narrowing-conversions,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -misc-include-cleaner,
+  -misc-use-anonymous-namespace,
+  -misc-non-private-member-variables-in-classes,
+  -misc-anonymous-namespace-in-header,
+  -misc-no-recursion,
+
+WarningsAsErrors: '*'
+HeaderFilterRegex: 'src/.*\.hpp$'
+ExcludeHeaderFilterRegex: '(_deps|build)/'
+
+CheckOptions:
+  misc-const-correctness.AnalyzePointers: false
+  readability-identifier-naming.StructCase: CamelCase
+  readability-identifier-naming.ClassCase: CamelCase
+  readability-identifier-naming.EnumCase: CamelCase
+  readability-identifier-naming.EnumConstantCase: UPPER_CASE
+  readability-identifier-naming.TypeAliasCase: CamelCase
+  readability-identifier-naming.FunctionCase: lower_case
+  readability-identifier-naming.VariableCase: lower_case
+  readability-identifier-naming.ConstantCase: UPPER_CASE
+  readability-identifier-naming.ConstexprVariableCase: UPPER_CASE
+  readability-identifier-naming.LocalConstantCase: lower_case
