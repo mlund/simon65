@@ -27,8 +27,10 @@
 #include <stdint.h>
 
 extern "C" {
-/// One refill pass: every page the play position has left (sound.S).
-void sound_tick();
+/// One refill pass: every page the play position has left (sound.S). leaf: it
+/// calls only its own assembly, so the interrupt that calls it keeps the rest
+/// of the program's static frames.
+__attribute__((leaf)) void sound_tick();
 /// Fill ring page sound_page and step it on, while sound_live is nought.
 void sound_fill();
 extern volatile uint8_t sound_live, sound_page, sound_hushed, sound_loading, sound_quiet,
@@ -221,7 +223,8 @@ inline void all_arrived() {
 
 extern "C" {
 void pep_init();
-void pep_play();
+/// leaf: modplay.S calls only itself; see sound_tick.
+__attribute__((leaf)) void pep_play();
 void pep_stop();
 uint8_t pep_bp_works();
 

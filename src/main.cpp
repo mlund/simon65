@@ -589,7 +589,13 @@ extern "C" {
 
 /// Called from irq_entry, which has already put B and Z where compiled code
 /// needs them and will put back what the interrupted code had.
-extern "C" void irq_tick() {
+///
+/// interrupt_norecurse makes this an interrupt root, so the static-stack
+/// analysis keeps its frames apart from the code it interrupts; without it an
+/// asynchronous call into C is undefined. no_isr: the save and the rti are
+/// irq_entry's, which saves no imaginary registers -- nothing called from here
+/// may use one.
+extern "C" __attribute__((interrupt_norecurse, no_isr)) void irq_tick() {
     VICII.irr = VIC_IRQ_RASTER; // acknowledge, or it re-fires on the way out
     frames = frames + 1;        // ++ on a volatile is deprecated in C++23
     // An interrupt held up into the next picture leaves the swap for the next.
