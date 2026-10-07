@@ -16,8 +16,8 @@
 
 #include "atticmap.hpp"
 #include "chipmap.hpp"
+#include "diagnostics.hpp"
 #include "planar.hpp"
-#include "trace.hpp"
 #include "zonepix.hpp"
 
 #ifdef __mos__
@@ -103,7 +103,7 @@ inline constexpr uint16_t RING_ROWS = 2048;
 inline constexpr uint16_t NO_ROW = 0xFFFF;
 
 /// Eight bytes a row: zone, image, page, cells, rows and a spare, so a row's
-/// place is a shift rather than a multiply -- the shape trace.hpp uses.
+/// place is a shift rather than a multiply -- the shape the arena trace uses.
 inline constexpr uint8_t ROW_BYTES = 8;
 
 /// What near memory keeps: a hash of (zone, image) to a row, two rows a

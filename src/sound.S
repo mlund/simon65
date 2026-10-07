@@ -29,7 +29,7 @@
 ; From the interrupt rather than the main loop, which a zone load holds up
 ; for 119-292 ms against the ring's 186 ms at 22 kHz. A DMA job of its own,
 ; so an interrupt landing inside a main-loop move cannot rewrite the list
-; that move is about to run; move.hpp masks interrupts over its trigger
+; that move is about to run; far.hpp masks interrupts over its trigger
 ; writes, so this cannot land between them either.
 ;
 ; ABI: A and Z, absolute operands and two zero-page pointers declared __zp

@@ -1,9 +1,6 @@
-// What the VMs reach for that the machine has to answer, and what a run leaves
-// behind for the monitor to read.
-//
-// Only one of these is really about the machine: turning a named file into
-// bytes at an address. The rest count what the interpreter asked for and could
-// not have, so that a run can be judged from outside without a screen.
+// What the VMs reach for that the machine has to answer: files off the card, the
+// palette and its fades, the pointer and sound, and the counts each leaves in
+// report (diagnostics.hpp).
 
 #pragma once
 
@@ -11,6 +8,7 @@
 #include "cardfs.hpp"
 #include "chipmap.hpp"
 #include "cursor.hpp"
+#include "diagnostics.hpp"
 #include "fault.hpp"
 #include "game_store.hpp"
 #include "mouse.hpp"
@@ -18,189 +16,6 @@
 #include "sound.hpp"
 
 #include <mega65.h>
-
-namespace report {
-
-/// Read back at the address the link map gives, never at one written here.
-///
-/// ZONES_ASKED is one bit per zone the script asked to be loaded. A zone that
-/// was never asked for is a scene whose setup never ran, which is a different
-/// fault from a zone that was asked for and did not arrive.
-///
-/// SYNC_LOST holds the first four idents a wait gave up on. The count says
-/// how many waits timed out; which ones names the scene that never signalled,
-/// and a scene that never signalled is one the script then runs straight past.
-///
-/// EXTRA_BANK is what the Attic bank answered when asked: a bank that did not
-/// load runs whatever bytes are at that address, so an answer only it knows is
-/// the only proof it is there.
-///
-/// VGA_SEEN and SCRIPT_SEEN are one bit per opcode a run met and did not
-/// implement -- four words of video opcodes and twelve of script. The counts
-/// say how often and VGA_LAST which was last; neither names the set, and the
-/// set is what decides what to write next.
-enum Slot : uint8_t {
-    MAGIC,
-    SCRIPT_MISSING,
-    VGA_MISSING,
-    FAULTS,
-    FAULT_VALUE,
-    ITEMS_MOVED,
-    TICKS,
-    TABLES,
-    ZONES,
-    SPRITES,
-    DRAWN,
-    DECODE_FRAMES,
-    PAINTED,
-    PALETTES,
-    LAST_BLOCK,
-    LAYERS,
-    FRAME_RASTERS,
-    RESIDENT,
-    SKIPPED_ZONE,
-    ZONES_DECODED,
-    TOO_WIDE,
-    CROWDED,
-    WORST_FRAME,
-    SAID,
-    SAID_LEN,
-    SAID_STRING,
-    SHOWN,
-    SHOWN_LEN,
-    SHOWN_WINDOW,
-    TIMEOUTS_RUN,
-    TIMEOUTS_HELD,
-    BOXES,
-    BOXES_SPILLED,
-    MOUSE_OFF,
-    CLICKED,
-    CLICKED_BOX,
-    CLICKED_VERB,
-    CLICKS_RUN,
-    PICTURES,
-    SYNC_GAVE_UP,
-    SYNC_WANTED,
-    SYNC_SENT,
-    TUNE_MISSING,
-    TUNE_WANTED,
-    VGA_LAST,
-    FAULT_KIND,
-    ZONES_FORCED,
-    IN_SUB,
-    STOPPED_ON,
-    TICK_RASTERS,
-    WORST_TICK,
-    WORST_DECODE,
-    ZONES_HELD,
-    ZONES_EMPTIED,
-    PAINT_MISSED,
-    TOO_BIG,
-    UNDECODED,
-    DECODED,
-    HINT_MISS,
-    WORST_LOAD,
-    LOADS,
-    STACK_GUARD,
-    ROW_PEAK,
-    LAYERS_DROPPED,
-    CLOSES_FAILED,
-    EXTRA_BANK,
-    SYNC_LOST,
-    VGA_SEEN = SYNC_LOST + 4,
-    SCRIPT_SEEN = VGA_SEEN + 4,
-    ZONES_ASKED = SCRIPT_SEEN + 12,
-    LOST_ID = ZONES_ASKED + 16,
-    LOST_ZONE,
-    LOST_PC_LO,
-    LOST_PC_HI,
-    // Appended, never inserted: a slot's number is what a readback shows.
-    DECODES_GIVEN_UP = LOST_PC_HI + 1,
-    /// What the animation VM asks the screen for, against what it gets.
-    ///
-    /// CELS_WANTED counts a sprite presenting a cel it was not drawn with last
-    /// tick -- the animation's own demand, set by the sprite scripts and the
-    /// tick rate, and nothing to do with how fast a figure decodes. CELS_HELD
-    /// counts the ones answered with the pose it held instead. Against DECODED
-    /// and TICKS these say whether the decoder is behind the demand or the
-    /// demand itself is slow, which nothing here could tell apart before.
-    CELS_WANTED,
-    CELS_HELD,
-    /// The frame's layer count at its worst, and how many frames ran out of
-    /// layers before they ran out of sprites. LAYERS alone is whatever the last
-    /// frame happened to hold, which says nothing about a busy room going past
-    /// the cap; LAYERS_CAPPED above nought is a figure somewhere not drawn.
-    LAYERS_PEAK,
-    LAYERS_CAPPED,
-    /// Stacked sprites merged into one layer: the most in one frame, and how
-    /// many merges were painted rather than found unchanged.
-    COMPOSITES_PEAK,
-    COMPOSITE_BUILDS,
-    /// Figure-decode pieces stepped, running.
-    DECODE_PIECES,
-    /// Slices' length in physical raster lines, 32 us apiece, running: wraps
-    /// counted piece by piece, 624 lines a frame (pixel_driver.vhdl:580).
-    SLICE_LINES,
-    /// Raster lines spent merging stacked sprites, running, counted the same way;
-    /// how many times it ran, and how many of those replayed the frame before.
-    COMPOSITE_LINES,
-    COMPOSITE_CALLS,
-    COMPOSITE_REPLAYS,
-    /// Sprites a frame could not draw at all: no figure yet and no pose of
-    /// theirs left to hold. Each is a blink.
-    NOT_DRAWN,
-    /// Raster lines in the animation VM's ticks, and in the draw with the decode
-    /// it finishes, both running: with SLICE_LINES and COMPOSITE_LINES, the frame.
-    TICK_LINES,
-    DRAW_LINES,
-    /// The draw split further, in raster lines, running: the sprite loop (with
-    /// the decode slices want() runs), the row rebuild and how many rows it
-    /// built, the decode finished after the draw, and the main loop's script
-    /// work. And frames past the catch-up limit, each a frame of game time
-    /// lost.
-    SPRITE_LINES,
-    ROWS_LINES,
-    ROWS_BUILT,
-    AFTER_DRAW_LINES,
-    SCRIPT_LINES,
-    LOST_FRAMES,
-    /// Figures decoded ahead of being asked for, in idle time; copy-ins of
-    /// them, re-copies included; and guesses dropped for a cel asked for.
-    AHEAD_DECODED,
-    AHEAD_USED,
-    AHEAD_ABANDONED,
-    /// Draws that kept the last frame while a cel was decoded, and holds that
-    /// reached the cap and drew the frame without it.
-    HELD_DRAWS,
-    HOLDS_GIVEN_UP,
-    /// Draws that found the last list not yet on screen and waited for it.
-    SWAP_WAITS,
-    /// Masks laid as a cut of the picture, running; and masks of priority 49,
-    /// which only see Simon's colours through and are not drawn.
-    MASKS_LAID,
-    MASKS_SEE_THROUGH,
-    /// The line of speech in force when a wait first gave up: its speaker and
-    /// its voice, which say why nothing sent the sync it waited for.
-    LOST_SAY_WHICH,
-    LOST_SAY_SPEECH,
-    /// Speech: SPEECH.BIN's runs, the voice last spoken, the frames until it
-    /// was all off the card, and the card time its reading took a turn.
-    SPEECH_RUNS,
-    VOICE_SPOKEN,
-    VOICE_LOAD_FRAMES,
-    PUMP_LINES,
-    WORST_PUMP,
-    /// Times the Attic figure arena came round (figures.hpp).
-    ARENA_WRAPS,
-    SLOTS
-};
-
-/// Set once the run has got as far as it is going to get.
-inline constexpr uint16_t RUNNING = 0xB0FF;
-
-extern volatile uint16_t counts[SLOTS];
-
-} // namespace report
 
 namespace agos {
 

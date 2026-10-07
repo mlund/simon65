@@ -27,14 +27,13 @@ CHDIR "SIMON65",U12
 RUN "SIMON65.PRG",U12
 ```
 
-Without `U12`, BASIC reads drive 8, not the SD card, and `.PRG` must be given. If the
-screen stays black with a purple border, the expansion RAM did not come up: switch the
-MEGA65 off and on rather than resetting it.
+If the screen stays black switch the MEGA65 off and on rather than resetting it.
 
 ## From source
 
-You need the llvm-mos compiler and the llvm-mos SDK with the `mega65-banked-nokernal`
-platform (LINKS TBD), CMake 3.20 or newer, Ninja or Make, and Python 3. CMake finds the
+You need the llvm-mos compiler and a patched llvm-mos SDK (upstream on its way) with the
+[`mega65-banked-nokernal` platform](https://github.com/mlund/llvm-mos-sdk/tree/mega65-banked-v3),
+CMake 3.20 or newer, Ninja or Make, and Python 3. CMake finds the
 toolchain through `-DLLVM_MOS=...` and `-DMEGA65_SDK=...`, or environment variables of
 the same names.
 

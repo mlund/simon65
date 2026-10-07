@@ -9,10 +9,10 @@
 // read back out of report::counts instead.
 
 #include "banks.hpp"
-#include "census.hpp"
 #include "chipmap.hpp"
 #include "composite.hpp"
 #include "cursor.hpp"
+#include "diagnostics.hpp"
 #include "display.hpp"
 #include "figures.hpp"
 #include "hitareas.hpp"
@@ -25,8 +25,6 @@
 #include "sound.hpp"
 #include "target_hooks.hpp"
 #include "text.hpp"
-#include "trace.hpp"
-#include "tune_store.hpp"
 #include "verbbar.hpp"
 #include "vmstate.hpp"
 #include "windows.hpp"

@@ -82,7 +82,7 @@ inline constexpr agos::Place LOCALTEXT = SAYFONT + SAYFONT_BYTES;
 inline constexpr uint32_t LOCALTEXT_BYTES = 4096;
 
 /// What a run leaves for the monitor to read: the animation VM's sprite list
-/// and what the draw did with each entry (census.hpp). Here and not in chip
+/// and what the draw did with each entry (diagnostics.hpp). Here and not in chip
 /// RAM because nothing reads it but the serial monitor -- not the VIC, not
 /// the audio DMA -- and chip RAM is the map with nothing to spare.
 inline constexpr agos::Place DIAGNOSTICS = LOCALTEXT + LOCALTEXT_BYTES;
