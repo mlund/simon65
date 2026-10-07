@@ -22,8 +22,7 @@ add_executable(simon65mod
   src/main.cpp
   src/modplay.S
   src/transpose.S
-  src/laycells.S
-  src/sound.S)
+  src/laycells.S)
 set_target_properties(simon65mod PROPERTIES SUFFIX ".prg")
 target_include_directories(simon65mod PRIVATE src)
 # The banks come off the SD card through Hyppo, the same route as the game's

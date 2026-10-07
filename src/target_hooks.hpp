@@ -329,7 +329,7 @@ inline void vga_paint(
 }
 
 /// IF_SPEECH's answer: whether channel 3 is still playing speech, an effect
-/// apart (sound.S).
+/// apart (sound.hpp).
 inline bool vga_voice_playing() {
     return sound::speaking();
 }

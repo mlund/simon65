@@ -16,7 +16,7 @@
 /// much of the file. Audio DMA's base address is 24 bits (iomap.txt:1103), so
 /// it cannot reach Attic; chip RAM ends at $60000, so its top byte is zero.
 #define SIMON_SAMPLES 0x20000
-/// The speech ring, for sound.S: a 4 KB boundary, so one byte of the play
+/// The speech ring (sound.hpp): a 4 KB boundary, so one byte of the play
 /// address names the page and the ring's pages wrap with a mask.
 #define SIMON_SPEECH 0x1E000
 

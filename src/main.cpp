@@ -582,7 +582,7 @@ constexpr uint8_t TEXT_PALETTE = 12;
 } // namespace
 
 extern "C" {
-// sound.S's pointers (sound.hpp), kept: the assembly is their main reader.
+// The refill's two pointers (sound.hpp), kept: inline assembly is their main reader.
 [[gnu::used]] __zp volatile uint8_t sound_effect[4];
 [[gnu::used]] __zp volatile uint8_t sound_ring[4];
 }
@@ -593,8 +593,7 @@ extern "C" {
 /// interrupt_norecurse makes this an interrupt root, so the static-stack
 /// analysis keeps its frames apart from the code it interrupts; without it an
 /// asynchronous call into C is undefined. no_isr: the save and the rti are
-/// irq_entry's, which saves no imaginary registers -- nothing called from here
-/// may use one.
+/// irq_entry's.
 extern "C" __attribute__((interrupt_norecurse, no_isr)) void irq_tick() {
     VICII.irr = VIC_IRQ_RASTER; // acknowledge, or it re-fires on the way out
     frames = frames + 1;        // ++ on a volatile is deprecated in C++23
@@ -604,18 +603,20 @@ extern "C" __attribute__((interrupt_norecurse, no_isr)) void irq_tick() {
         swap_to = 0;
     }
     tune_store_tick();
-    sound_tick();
+    sound::tick();
 }
 
 /// The raster interrupt's front door.
 ///
 /// Assembly rather than an interrupt attribute: the attribute cannot see what
 /// pep_play clobbers, so it spills the whole imaginary register file -- 142
-/// instructions against these twelve, in the one hot path this program has.
+/// instructions -- in the one hot path this program has. This saves A, X, Y, Z,
+/// B and the caller-saved imaginary registers __rc2-__rc19, the ones irq_tick
+/// may use without restoring; it restores the rest itself, as any function does.
 ///
-/// What it saves is what the driver needs and no more. B and Z are put back as
-/// they were found rather than zeroed, which is what lets a long decode run
-/// with interrupts on, and so what keeps the music playing through it.
+/// B and Z are put back as they were found rather than zeroed, which is what
+/// lets a long decode run with interrupts on, and so what keeps the music
+/// playing through it.
 extern "C" void irq_entry();
 asm(R"(
 	.section .text.irq,"ax",@progbits
@@ -630,7 +631,18 @@ irq_entry:
 	lda #0x00
 	tab                              ; the compiler's base page
 	ldz #0x00                        ; and the Z it is entitled to
+	ldx #17                          ; __rc2-__rc19, the caller-saved ones
+1:	lda mos8(__rc2),x
+	pha
+	dex
+	bpl 1b
 	jsr irq_tick                     ; the handler proper, above
+	ldx #0
+2:	pla
+	sta mos8(__rc2),x
+	inx
+	cpx #18
+	bne 2b
 	pla
 	tab                              ; whatever the interrupted code had
 	plz

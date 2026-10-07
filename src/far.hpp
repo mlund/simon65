@@ -33,7 +33,7 @@
 
 /// Interrupts held off for the guard's lifetime: around anything the raster
 /// interrupt also touches, such as the DMA trigger registers and the speech
-/// refill's counters (sound.S). php/plp rather than sei/cli, because some of
+/// refill's counters (sound.hpp). php/plp rather than sei/cli, because some of
 /// it runs at startup before the vector is set, with interrupts already off.
 /// leaf: the blocks call nothing, so callers keep their static stack frames.
 struct Masked {
@@ -66,7 +66,7 @@ namespace move_detail {
 /// The SDK's trigger builds a job on the soft stack at each call and wraps it
 /// in inline assembly without `leaf`, so every function reaching a move kept
 /// its frame on the soft stack too. The one interrupt that moves bytes, the
-/// speech refill, has a job of its own (sound.S), so one job serves here.
+/// speech refill, has a job of its own (sound.hpp), so one job serves here.
 /// Near memory, where its 16-bit address is its physical one: the trigger
 /// writes list bank and megabyte nought ($D702 clears $D704, iomap.txt).
 /// Built by the SDK's maker so the constant options are in the image.
@@ -109,7 +109,7 @@ inline void run_on(Job& job, uint8_t command, uint32_t from, uint32_t to, uint16
     job.dmalist.dest_bank = static_cast<uint8_t>((to >> 16) & 0x0F);
     const auto list = reinterpret_cast<uint16_t>(&job);
     // The speech refill triggers a job of its own from the raster interrupt
-    // (sound.S): landing between these writes would leave this one running
+    // (sound.hpp): landing between these writes would leave this one running
     // that one's list.
     const Masked masked;
     DMA.enable_f018b = 1;

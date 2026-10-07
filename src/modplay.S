@@ -31,7 +31,7 @@
 #define CH0RVOL 0xd71c  // then CH1RVOL, CH2LVOL, CH3LVOL
 ;;; Music keeps channels 0-2. The CD32's player sends its fourth voice to a
 ;;; dummy (runit2 0x20266, DMACON masked to 7 at 0x1fcf8), and speech and
-;;; effects take channel 3 (sound.S): its effect column still steers the song,
+;;; effects take channel 3 (sound.hpp): its effect column still steers the song,
 ;;; but nothing of it reaches the hardware.
 #define MUSIC_CHANNELS 3
 

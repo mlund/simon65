@@ -210,7 +210,7 @@ inline constexpr uint32_t EFFECTS_BYTES = 0xA0000; // 640 KiB
 inline constexpr uint8_t EFFECT_IDS = 141;
 
 /// The voice being spoken, read off the card whole for channel 3 to stream
-/// from (sound.S): page-aligned, as the refill steps a page at a time. Taken
+/// from (sound.hpp): page-aligned, as the refill steps a page at a time. Taken
 /// from the figures above; the longest voice is 908,032 bytes.
 inline constexpr agos::Place SOUND = EFFECTS + EFFECTS_BYTES;
 inline constexpr uint32_t SOUND_BYTES = 0x100000; // 1 MiB

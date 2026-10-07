@@ -3,11 +3,22 @@
 //
 // --- speech and effects ---
 //
-// The refill is sound.S, from the raster interrupt: each ring page is the
-// speech's next page, or silence, with the effect's next page added into it,
-// clipped (sound.S). This is the main loop's half: set a
-// stream's position, prime the ring, program the channel. Music keeps
-// channels 0-2 (modplay.S), as the CD32's does.
+// Speech and effects play through one 4 KB ring in chip RAM, because audio DMA cannot see
+// the Attic where they are (iomap.txt:1103), and through one channel, because the CD32
+// plays both on its channel 3 (runit2). The hardware loops the ring; `tick`, from the
+// raster interrupt, refills every page the play position has left. A page is the
+// speech's next page, by DMA, or silence; then the effect's next page is added into it,
+// clipped as ScummVM's mixer does (sound.cpp:503). The CD32 adds the same way (runit2
+// 0x1ccce) but lets the sum wrap, and many effects peak at full scale: each overflow is a
+// click. DMAgic cannot add (its mix command is unimplemented, gs4510.vhdl:6037).
+//
+// The refill runs a ringful behind the playback, so pages filled without something are
+// pages played without it: a whole ring of nothing stops the channel, and a ring without
+// speech ends the voice (IF_SPEECH). While the main loop is still reading speech off the
+// card, a missing page is silence but not the end.
+//
+// From the interrupt because a zone load holds up the main loop for 119-292 ms against
+// the ring's 186 ms at 22 kHz. Music keeps channels 0-2 (modplay.S), as the CD32's does.
 //
 // The arbitration is the CD32's (runit2 0x1cd4a, 0x1f36a): new speech cuts
 // the old and leaves an effect playing; a new effect cuts the old effect and
@@ -27,28 +38,151 @@
 #include <stdint.h>
 
 extern "C" {
-/// One refill pass: every page the play position has left (sound.S). leaf: it
-/// calls only its own assembly, so the interrupt that calls it keeps the rest
-/// of the program's static frames.
-__attribute__((leaf)) void sound_tick();
-/// Fill ring page sound_page and step it on, while sound_live is nought.
-void sound_fill();
-extern volatile uint8_t sound_live, sound_page, sound_hushed, sound_loading, sound_quiet,
-    sound_playing;
-extern volatile uint16_t sound_left, sound_effect_left;
-extern volatile uint8_t sound_src_megabyte, sound_src_bank, sound_src_page;
-/// sound.S's two 32-bit pointers, for lda [ptr],z: the effect's next page
-/// and the ring page it is added into, low bytes nought. Zero page, declared
-/// here so the compiler's own allocation knows of them (main.cpp).
+/// Two 32-bit pointers for `lda [ptr],z`: the effect's next page and the ring page it is
+/// added into, low bytes nought. Zero page, defined in main.cpp; C names, because the
+/// inline assembly in `sound::fill` names them.
 extern __zp volatile uint8_t sound_effect[4], sound_ring[4];
 }
+
+/// Shared between the interrupt's refill and the main loop, hence volatile.
+inline volatile uint8_t sound_live = 0;         // nought while the main loop sets up
+inline volatile uint8_t sound_loading = 0;      // set while more speech is coming
+inline volatile uint8_t sound_page = 0;         // the ring page to fill next
+inline volatile uint8_t sound_hushed = 0;       // pages filled with nothing, in a row
+inline volatile uint8_t sound_quiet = 0;        // pages filled without speech, in a row
+inline volatile uint8_t sound_playing = 0;      // the page the hardware is in
+inline volatile uint16_t sound_left = 0;        // pages of speech not yet in the ring
+inline volatile uint16_t sound_effect_left = 0; // pages of effect not yet added
 
 namespace sound {
 
 inline constexpr uint16_t PAGE = 256;
 inline constexpr uint8_t RING_PAGES = static_cast<uint8_t>(chipmap::SPEECH_BYTES / PAGE);
-static_assert(RING_PAGES == 16, "sound.S masks the ring's pages with 15");
+inline constexpr uint8_t RING_PAGE = static_cast<uint8_t>(chipmap::SPEECH >> 8);
+inline constexpr uint8_t RING_BANK = static_cast<uint8_t>(chipmap::SPEECH >> 16);
+static_assert(chipmap::SPEECH % PAGE == 0 && RING_PAGE + RING_PAGES <= 256,
+    "the ring's pages step in one byte");
 inline constexpr uint8_t CHANNEL = 3;
+
+/// The refill's own F018B job, so an interrupt landing inside a main-loop move cannot
+/// rewrite the list that move is about to run. Its source is the speech's position:
+/// page-aligned, so a page never crosses a megabyte and each field steps alone.
+struct Job {
+    uint8_t f018b = 0x0b;
+    uint8_t source_megabyte_option = 0x80;
+    uint8_t source_megabyte = 0;
+    uint8_t dest_megabyte_option = 0x81;
+    uint8_t dest_megabyte = 0; // chip
+    uint8_t dest_step_option = 0x85;
+    uint8_t dest_step = 1;
+    uint8_t end_of_options = 0;
+    uint8_t command = 0;
+    uint16_t count = PAGE;
+    uint8_t source_low = 0; // and a fill's value
+    uint8_t source_page = 0;
+    uint8_t source_bank = 0;
+    uint8_t dest_low = 0;
+    uint8_t dest_page = RING_PAGE;
+    uint8_t dest_bank = RING_BANK;
+    uint8_t command_high = 0;
+    uint16_t modulo = 0;
+};
+inline volatile Job job;
+
+inline constexpr uint8_t DMA_COPY = 0x00, DMA_FILL = 0x03;
+inline constexpr uint8_t BANKS_A_MEGABYTE = 16;
+
+/// Run the job as @p command. DMA stops the CPU until it is done.
+[[gnu::always_inline]] inline void run_job(uint8_t command) {
+    job.command = command;
+    const auto list = reinterpret_cast<uint16_t>(&job);
+    DMA.enable_f018b = 1;
+    DMA.addr_bank = 0;
+    DMA.addr_msb = static_cast<uint8_t>(list >> 8);
+    DMA.trigger_enhanced = static_cast<uint8_t>(list);
+}
+
+/// Add the effect's next page into the ring's, clipped: on a signed overflow the carry
+/// says which way, clear for two positives (127), set for two negatives (-128). Z runs a
+/// page and ends at nought, as compiled code needs.
+[[gnu::always_inline]] inline void add_effect_page() {
+    __attribute__((leaf)) asm volatile("ldz #0\n"
+                                       "1:\n\t"
+                                       "lda [sound_effect],z\n\t"
+                                       "clc\n\t"
+                                       "adc [sound_ring],z\n\t"
+                                       "bvc 2f\n\t"
+                                       "lda #0x7f\n\t"
+                                       "adc #0\n"
+                                       "2:\n\t"
+                                       "sta [sound_ring],z\n\t"
+                                       "inz\n\t"
+                                       "bne 1b" :: : "a",
+        "p",
+        "memory");
+}
+
+/// Fill ring page sound_page and step it on. sound_hushed counts on, and anything laid
+/// in the page sets it back to nought. Out of line: the interrupt and `start` share it.
+[[gnu::noinline]] inline void fill() {
+    const uint8_t page = static_cast<uint8_t>(sound_page + RING_PAGE);
+    job.dest_page = page;
+    sound_ring[1] = page;
+    sound_hushed = static_cast<uint8_t>(sound_hushed + 1);
+
+    if (sound_left != 0) {
+        run_job(DMA_COPY);
+        job.source_page = static_cast<uint8_t>(job.source_page + 1);
+        if (job.source_page == 0) {
+            job.source_bank = static_cast<uint8_t>(job.source_bank + 1);
+            if (job.source_bank == BANKS_A_MEGABYTE) {
+                job.source_bank = 0;
+                job.source_megabyte = static_cast<uint8_t>(job.source_megabyte + 1);
+            }
+        }
+        sound_left = static_cast<uint16_t>(sound_left - 1);
+        sound_quiet = 0;
+        sound_hushed = 0;
+    } else {
+        run_job(DMA_FILL);
+        if (sound_loading != 0)
+            sound_hushed = 0; // starved, not finished
+        else if (sound_quiet < RING_PAGES)
+            sound_quiet = static_cast<uint8_t>(sound_quiet + 1);
+    }
+
+    if (sound_effect_left != 0) {
+        add_effect_page();
+        sound_effect[1] = static_cast<uint8_t>(sound_effect[1] + 1);
+        if (sound_effect[1] == 0) {
+            sound_effect[2] = static_cast<uint8_t>(sound_effect[2] + 1);
+            if (sound_effect[2] == 0)
+                sound_effect[3] = static_cast<uint8_t>(sound_effect[3] + 1);
+        }
+        sound_effect_left = static_cast<uint16_t>(sound_effect_left - 1);
+        sound_hushed = 0;
+    }
+    sound_page = static_cast<uint8_t>((sound_page + 1) & (RING_PAGES - 1));
+}
+
+/// One refill pass, from the raster interrupt: every page the play position has left. A
+/// ringful of nothing stops the channel.
+[[gnu::always_inline]] inline void tick() {
+    if (sound_live == 0)
+        return;
+    // One byte of a moving counter cannot tear. At the top it reads one past the ring,
+    // which the mask makes page nought, where it is about to be.
+    sound_playing =
+        static_cast<uint8_t>((DMA.channel[CHANNEL].curaddr_mb - RING_PAGE) & (RING_PAGES - 1));
+    while (sound_page != sound_playing) {
+        fill();
+        if (sound_hushed >= RING_PAGES) {
+            DMA.channel[CHANNEL].enable = 0;
+            sound_live = 0;
+            return;
+        }
+    }
+}
 
 /// The rate register counts CPU cycles: it is added to a 24-bit counter each
 /// one, and a sample is fetched when that overflows (twp65 twpsnd.py).
@@ -69,7 +203,7 @@ inline constexpr uint8_t ENABLED = DMA_CHENABLE | DMA_CHLOOP | DMA_CHSBITS_8;
 inline constexpr uint8_t VOLUME = 0xFF;
 
 /// What never changes about channel 3, once at startup: the ring's place and
-/// top, the rate, both volumes, and the constant bytes of sound.S's pointers.
+/// top, the rate, both volumes, and the constant bytes of the refill's pointers.
 /// Music leaves channel 3 alone (modplay.S), so they stay set.
 inline void begin() {
     auto& channel = DMA.channel[CHANNEL];
@@ -116,7 +250,7 @@ SOUND_BANKED inline void start() {
     sound_page = 0;
     sound_hushed = 0;
     for (uint8_t page = 0; page < RING_PAGES; ++page)
-        sound_fill();
+        fill();
     if (sound_hushed >= RING_PAGES)
         return;
     // Bits 8-15 are baddr_msb in begin() but curaddr_mb here: the SDK's names
@@ -158,9 +292,9 @@ inline void speak(agos::Place from, uint16_t pages, bool more) {
     sound_live = 0;
     DMA.channel[CHANNEL].enable = 0;
     rewind_effect();
-    sound_src_page = static_cast<uint8_t>(from >> 8);
-    sound_src_bank = static_cast<uint8_t>((from >> 16) & 0x0F);
-    sound_src_megabyte = static_cast<uint8_t>(from >> 20);
+    job.source_page = static_cast<uint8_t>(from >> 8);
+    job.source_bank = static_cast<uint8_t>((from >> 16) & 0x0F);
+    job.source_megabyte = static_cast<uint8_t>(from >> 20);
     sound_left = pages;
     sound_loading = more ? 1 : 0;
     sound_quiet = 0;
@@ -223,7 +357,8 @@ inline void all_arrived() {
 
 extern "C" {
 void pep_init();
-/// leaf: modplay.S calls only itself; see sound_tick.
+/// leaf: modplay.S calls only itself, so the interrupt that calls it keeps the rest of
+/// the program's static frames.
 __attribute__((leaf)) void pep_play();
 void pep_stop();
 uint8_t pep_bp_works();
