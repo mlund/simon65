@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // tbllist and the TABLES files: which file holds a subroutine, and the walk
 // that turns a disk block into the form the VM runs.
 

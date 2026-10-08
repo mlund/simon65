@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // The mouse pointer: the one hardware sprite this display uses.
 //
 // Everything else that moves is an RRB token, which is why the map reserves a
@@ -18,44 +20,35 @@
 
 namespace cursor {
 
-/// Sixteen-bit sprite pointers ($D06E.7), which let a sprite's glyph sit on
-/// any 64-byte boundary in chip RAM rather than in the first 16 KB
-/// (iomap.txt:267). The pointer holds the address in sixty-fourths.
+/// Sixteen-bit sprite pointers ($D06E.7) let a glyph sit on any 64-byte
+/// boundary (iomap.txt:267), not the first 16 KB. Pointer in sixty-fourths.
 inline constexpr uint8_t PTR16 = 0x80;
 
 /// The pointer table, inside the cursor's own reservation and clear of the
 /// 63 bytes of glyph below it.
 inline constexpr uint32_t TABLE = chipmap::CURSOR + 64;
 
-/// What a sprite Y is, against the physical raster the picture starts on.
-/// Measured in twp65 and the same here: the sprite coordinate system is
-/// offset from the raster the VIC reports.
+/// Sprite Y offset from the picture's raster (twp65 and here measure the
+/// same; the sprite coordinate system offsets the VIC's raster).
 inline constexpr uint16_t SPRITE_BIAS = 16;
 
-/// Where the picture's left edge lands in sprite X. The classic origin, and
-/// it agrees with the geometry: TEXTXPOS reads 80 physical columns, which is
-/// 40 of this mode's pixels, less the same bias.
+/// The picture's left edge in sprite X (the classic origin; it agrees with
+/// the geometry: TEXTXPOS reads 80 columns, 40 pixels here, less the bias).
 inline constexpr uint16_t LEFT_PIXEL = 24;
 
-/// The picture's first raster, read from the VIC rather than written down
-/// twice: the display sets the geometry and this follows it.
+/// The picture's first raster, read from the VIC (the display sets it).
 inline uint16_t top_raster = 0;
 
-/// Two rasters a pixel row, as display_begin sets ($D048 chryscl). A picture
-/// row is therefore two rasters down, which is why the Y below needs nine
-/// bits: eight stop the pointer a little over half way down the screen, which
-/// reads as a pointer that will not go lower rather than as a number that ran
-/// out (measured in twp65).
+/// Two rasters per picture row (display_begin sets $D048 chryscl). The Y
+/// below needs nine bits: eight stop the pointer halfway down, reading as
+/// a limit rather than a number that ran out (twp65).
 inline constexpr uint8_t RASTERS_PER_ROW = 2;
 
-/// An arrow, 24 by 21 as a sprite is: the classic shape, so that what is on
-/// screen is unmistakably ours and not a leftover.
-/// An arrow, eleven pixels across and fourteen down inside the 24 by 21 a
-/// sprite always is. Small because a picture row is two rasters and the
-/// sprite is expanded to match, so a pixel here is a pixel of the picture:
-/// the 24-wide classic shape stood a seventh of the room's height.
-///
-/// The tip is the top left, which is where the pointer is said to be.
+/// The classic arrow shape: unmistakably ours, not a leftover. Eleven by
+/// fourteen pixels inside the 24 by 21 sprite. Small because the sprite
+/// expands to match the picture's two rasters per row: a pixel here is a
+/// picture pixel. The 24-wide classic was a seventh of the room's height.
+/// The tip (top left) is where the pointer is said to be.
 inline constexpr uint8_t ARROW[63] = {
     0x80,
     0x00,
@@ -133,20 +126,16 @@ inline void begin(uint8_t colour) {
         static_cast<uint16_t>(VICIV.textypos_lsb | ((VICIV.textypos_msb & 0x0F) << 8));
     top_raster = static_cast<uint16_t>(textypos - SPRITE_BIAS);
 
-    // Stated rather than inherited. Each of these survives a reset or an earlier
-    // program and changes the picture without changing the data: sixteen-colour
-    // mode reads these bytes as pairs of nybbles and paints a solid block,
-    // expansion doubles a pixel, multicolour halves the resolution, alpha fades
-    // it out, and V400 changes what a Y counts. mega65-freezer's sprite editor
-    // clears the same set, and twp65 measured what each does.
+    // Set explicitly, not inherited (survive resets and earlier programs).
+    // Each changes the picture without changing the data: sixteen-colour mode
+    // paints solid blocks, expansion doubles pixels, multicolour halves the
+    // resolution, alpha fades it, V400 changes what a Y counts (twp65).
     VICIV.spr_16en = 0; // one bit a pixel, which is what ARROW is
     VICIV.spr_x64en = 0;
     VICIV.spr_hgten = 0; // the classic twenty-one rows
-    // X square with the picture, Y twice as tall, because the display draws two
-    // rasters to a picture row and a sprite pixel is one raster. Unexpanded, the
-    // pointer is half the height the same art has in ScummVM's 320x200; expanded
-    // in X as well it would be twice as wide, since across we are already 1:1 at
-    // forty cells of eight. The display decides this, not the caller.
+    // X square with the picture, Y doubled (two rasters per picture row,
+    // sprite pixel is one raster). Unexpanded, the pointer is half ScummVM's
+    // 320x200 height. Expanding X too would double width: across is already 1:1.
     VICIV.spr_exp_x = 0;
     VICIV.spr_exp_y = 0x01;
     VICII.spr_mcolor = 0;
@@ -156,7 +145,7 @@ inline void begin(uint8_t colour) {
     VICIV.spr_ysmsbs = 0;
     VICII.spr_hi_x = 0;
 
-    // The table holds sixty-fourths, which is what a 64-byte boundary is for.
+    // The table holds sixty-fourths (64-byte boundaries).
     const uint16_t sixty_fourth = static_cast<uint16_t>(chipmap::CURSOR / 64);
     uint8_t entry[2] = {
         static_cast<uint8_t>(sixty_fourth), static_cast<uint8_t>(sixty_fourth >> 8)};

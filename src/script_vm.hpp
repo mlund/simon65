@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // The main script interpreter: the AND-chain, the operand forms, and the
 // opcodes that need nothing outside the VM.
 
@@ -262,16 +264,16 @@ class ScriptVm {
         return unimplemented_;
     }
 
-    /// The subroutine running now and how many have run: with no screen to
-    /// watch, this is how a stalled script says where it stalled.
-    /// End the script chain that is running, the way the engine does.
+    /// End the script chain that is running, the way the engine does, and let
+    /// go of any wait it is in.
     ///
     /// Set once, it makes every script on the way out return 1 and stays set
     /// until a top-level driver clears it (runScript, script.cpp:999;
     /// invokeTimeEvent, event.cpp:119-126). That is what unwinds a cutscene:
     /// without it the interrupted script carries on, reaches its next wait, and
     /// the skip nests the whole interpreter inside itself.
-    void return_from_script() {
+    void unwind() {
+        wait_for_ = 0;
         return1_ = true;
     }
     [[nodiscard]] bool returning() const {
@@ -281,6 +283,8 @@ class ScriptVm {
         return1_ = false;
     }
 
+    /// The subroutine running now and how many have run: with no screen to
+    /// watch, this is how a stalled script says where it stalled.
     [[nodiscard]] uint16_t in_sub() const {
         return in_sub_;
     }
@@ -304,25 +308,43 @@ class ScriptVm {
     [[nodiscard]] uint16_t vga_object(uint8_t slot) const {
         return slot < OBJECT_SLOTS ? objects_[slot] : NO_ITEM;
     }
-    [[nodiscard]] uint16_t vga_wait_for() const {
-        return wait_for_;
-    }
     /// A text box's name, by its slot (SET_SHORT_TEXT); nought when unset.
     [[nodiscard]] uint16_t short_text(uint8_t slot) const {
         return slot < TEXT_BOXES ? short_text_[slot] : 0;
     }
-    void set_vga_wait_for(uint16_t id) {
-        wait_for_ = id;
-    }
 
-    /// The last sync the animation VM sent, which a wait that has not started
-    /// yet still counts (waitForSync, script.cpp:1069). This release's scripts
-    /// sync before the main script asks, and without this the ask is for ever.
-    [[nodiscard]] uint16_t last_sync() const {
-        return last_sync_;
+    /// Start waiting for sync @p ident; false if it has already gone past,
+    /// which counts as arrived (waitForSync, script.cpp:1069). This release's
+    /// scripts sync before the main script asks, and without this the ask is
+    /// for ever. The speech sync is always waited for.
+    [[nodiscard]] bool wait_for_sync(uint16_t ident) {
+        if (ident != SPEECH_SYNC) {
+            const uint16_t sent = last_sync_;
+            last_sync_ = 0;
+            if (sent == ident)
+                return false;
+        }
+        wait_for_ = ident;
+        return true;
     }
-    void set_last_sync(uint16_t id) {
-        last_sync_ = id;
+    /// Whether the wait is still on: the animation VM has not synced.
+    [[nodiscard]] bool waiting() const {
+        return wait_for_ != 0;
+    }
+    /// The wait given up, the script left to run on.
+    void stop_waiting() {
+        wait_for_ = 0;
+    }
+    /// The animation VM's sync @p ident: kept for a wait not yet started, and
+    /// the wait on it released (vga.cpp:805).
+    void synced(uint16_t ident) {
+        last_sync_ = ident;
+        if (ident == wait_for_)
+            wait_for_ = 0;
+    }
+    /// Every sync sent forgotten, as a sprite reset does (vga.cpp:1088).
+    void forget_syncs() {
+        last_sync_ = 0;
     }
     [[nodiscard]] uint16_t player_parent() const {
         return db_->item(PLAYER_ITEM).parent();

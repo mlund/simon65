@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Amiga bitplanes to one byte of colour index per pixel.
 //
 // The pixel data is planar: `depth` separate bitmaps, one per bit of the
@@ -83,9 +85,9 @@ class PlaneReader {
   public:
     /// A compressed plane running from @p at to @p end.
     ///
-    /// over_ is cleared here because a reader outlives one image now: the
-    /// decoder keeps its readers between pieces, and a plane that overran on
-    /// one image would otherwise condemn every image after it.
+    /// over_ is cleared here because a reader outlives one image: the decoder
+    /// keeps its readers between pieces, and a plane that overran on one image
+    /// would otherwise condemn every image after it.
     void open_packed(Place at, Place end) {
         at_ = at;
         end_ = end;
@@ -193,27 +195,12 @@ inline constexpr uint8_t MAX_PLANES = 8;
     return depth;
 }
 
-/// Eight pixels from the top bits of each plane word, consuming them.
-///
-/// Plane-major, not pixel-major. A plane's word is loaded once and stays in
-/// registers for all eight pixels it feeds, shifting left a bit at a time;
-/// asking for bit 15-x per pixel instead reloads every plane for every pixel
-/// *and* costs a variable-distance 16-bit shift, which on this CPU is a called
-/// loop rather than an instruction. Measured on hardware over one 320x136
-/// room: bit-indexed 95 frames, shift-and-test but pixel-major 37, this 29.
-/// res_ami.cpp:56 is the same shape, two pixels at a time.
-/// @p seed is what a pixel starts as, which lets a caller that paints every
-/// pixel write straight into its destination with the palette block already
-/// on: decoding into a scratch and copying cost 21 cycles a pixel, which is
-/// about a frame over a full-screen backdrop.
 /// Two planes' pixels, looked up by the two nibbles they contribute.
 ///
 /// The transpose is the decode's largest part: stubbing it took a 32-cell
-/// title image from 12 frames to 5, measured on hardware. Per pixel per plane
-/// it was a test, a shift, a load and a store; a table gives two planes at one
-/// load, indexed by one plane's nibble over the other's. The second table is
-/// the same bits two places up, so merging the other two planes is an ORA
-/// rather than a pair of shifts.
+/// title image from 12 frames to 5, measured on hardware. Bit by bit it costs
+/// a test, a shift, a load and a store per pixel per plane; a table gives two
+/// planes at one load, indexed by one plane's nibble over the other's.
 struct PairBits {
     uint8_t at[4][256];
 };
@@ -231,10 +218,24 @@ consteval PairBits pair_bits() {
     return made;
 }
 
-/// One table, not two. The second pair's bits are positioned two places up,
-/// saving half the space. The fixed region has no room for another kilobyte.
+/// One table, not two: the other two planes' bits are shifted two places up
+/// from it. The fixed region has no room for another kilobyte.
 inline constexpr PairBits PAIR = pair_bits();
 
+/// Eight pixels from the top bits of each plane word, consuming them.
+///
+/// Plane-major, not pixel-major. A plane's word is loaded once and stays in
+/// registers for all eight pixels it feeds, shifting left a bit at a time;
+/// asking for bit 15-x per pixel instead reloads every plane for every pixel
+/// *and* costs a variable-distance 16-bit shift, which on this CPU is a called
+/// loop rather than an instruction. Measured on hardware over one 320x136
+/// room: bit-indexed 95 frames, shift-and-test but pixel-major 37, this 29.
+/// res_ami.cpp:56 is the same shape, two pixels at a time.
+///
+/// @p seed is what a pixel starts as, which lets a caller that paints every
+/// pixel write straight into its destination with the palette block already
+/// on: decoding into a scratch and copying costs 21 cycles a pixel, about a
+/// frame over a full-screen backdrop.
 inline void chunky8(uint16_t* word, uint8_t depth, uint8_t* out, uint8_t seed = 0) {
     // Four planes is what a figure has and nearly every room: worth the one
     // special case, since it is the whole of the transpose in eight lines.
@@ -443,9 +444,9 @@ inline constexpr uint16_t TILE_BYTES = 2 * GLYPH_BYTES;
 ///
 /// A room is not one picture. Zone 64's image script paints twenty-two: the
 /// base, then its scenery, each over what is already there. They belong in the
-/// backdrop and not in the figure pool -- they are ground, not actors, and the
-/// pool holds one painted figure at a time, so every piece but the last used
-/// to be lost.
+/// backdrop, not the figure pool: they are ground, not actors, and the pool
+/// holds one painted figure at a time, so every piece but the last would be
+/// lost.
 ///
 /// Transparent, because that is what the pieces are: colour nought is left
 /// alone (gfx.cpp:793), so a destination tile is read, merged and written back
@@ -469,9 +470,9 @@ inline constexpr uint16_t TILE_BYTES = 2 * GLYPH_BYTES;
 /// Neither clears the ground. Fourteen of the release's backdrops are
 /// narrower than the picture and more are shorter, so what the art misses has
 /// to be cleared by whoever knows a room is starting; doing it here as well
-/// would be the same bytes written twice. The zeroing below is the near tile
-/// being started clean before a part row is written into it, which is a
-/// different thing -- that scratch is reused by every strip.
+/// would write the same bytes twice. The zeroing below is a different thing:
+/// the near tile started clean before a part row goes into it, since every
+/// strip reuses that scratch.
 ///
 /// @p glyphs is the backdrop's first glyph, @p across the cells in a screen
 /// row, @p rows the glyph rows the picture has, @p x_cells and @p y_px where
@@ -599,8 +600,8 @@ inline constexpr uint16_t TILE_BYTES = 2 * GLYPH_BYTES;
 ///
 /// The numbering: a figure moves vertically by the GOTOX offset, which carries
 /// into the next glyph number (viciv.vhdl:4486), so the glyph below one of its
-/// glyphs must be the next number up. Its two halves of a strip are therefore
-/// a column's height apart rather than adjacent, and leave as two moves.
+/// glyphs must be the next number up, and a figure is numbered down its
+/// columns.
 ///
 /// The height: only 11.5% of the release's images are a multiple of eight
 /// tall, so the last glyph row is usually partial and its remainder has to be
@@ -618,9 +619,9 @@ inline constexpr uint16_t TILE_BYTES = 2 * GLYPH_BYTES;
 /// bottom 8-d lines of the last cell from the next. Without the blanks a
 /// shifted figure wears its neighbour's pixels at top and bottom.
 ///
-/// A decode was atomic and a big one is eight frames: 160 milliseconds in
-/// which the game did nothing, landing on the title's cross-fade. The work is
-/// the same; what changes is that it stops between pieces and comes back.
+/// Whole, a big decode is eight frames: 160 milliseconds in which the game
+/// does nothing, landing on the title's cross-fade. Sliced, the work is the
+/// same but stops between pieces and comes back.
 ///
 /// The state is here rather than on the stack because of the plane readers:
 /// a packed plane is a stream consumed strictly in order, so re-entering an
@@ -654,9 +655,9 @@ class FigureDecode {
             // The planes below are read by address rather than as a stream, so
             // overran() says nothing about them and the whole block has to be in
             // the file before the first read. Two images in the release end past
-            // it, and unchecked they decoded from whatever sat next in Attic and
-            // said so. In 16 bits for the product -- 32 is a call to __mulsi3, 326
-            // bytes of it.
+            // it; unchecked, they decode from whatever sits next in Attic and
+            // report success. In 16 bits for the product -- 32 is a call to
+            // __mulsi3, 326 bytes of it.
         } else if (static_cast<uint32_t>(static_cast<uint16_t>(words_ * 2u)) * depth_ >
             end - data_) {
             return false;
@@ -740,8 +741,8 @@ class FigureDecode {
                 chunky16_packed(word, depth_, &tile_[line * GLYPH_SIDE]);
         }
 
-        // One cell, where a full-colour strip was two a column apart and left as
-        // two moves. Art sits one glyph down its column, leaving index 0 blank.
+        // One four-bit cell holds the strip, so it leaves as one move. Art sits
+        // one glyph down its column, leaving index 0 blank.
         const uint16_t cell = static_cast<uint16_t>(strip_ * stride_ + glyph_row_ + 1);
         far_write(glyphs_ + Place{cell} * GLYPH_BYTES, tile_, GLYPH_BYTES);
     }
@@ -758,8 +759,8 @@ class FigureDecode {
 
     PlaneReader plane_[MAX_PLANES];
     /// A member, not a local in art(): a local that far_write takes the address
-    /// of is addressed through a frame, and absolute beat that by 500 bytes of
-    /// text here -- measured, and ram_fixed had 268 to give.
+    /// of is addressed through a frame, and absolute beats that by 500 bytes of
+    /// text here, measured when ram_fixed had 268 to give.
     uint8_t tile_[GLYPH_BYTES] = {};
     Place data_ = NOWHERE, glyphs_ = NOWHERE;
     uint16_t strips_ = 0, words_ = 0, strip_ = 0, column_ = 0;
@@ -769,7 +770,7 @@ class FigureDecode {
 };
 
 /// The one decode in flight. One at a time: a second would need a second set
-/// of plane readers, and the draw has only ever asked for one.
+/// of plane readers, and the draw asks for one.
 inline FigureDecode figure_decode;
 
 #ifndef __mos__

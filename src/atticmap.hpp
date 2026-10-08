@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Where everything lives in Attic RAM.
 //
 // Eight megabytes the VIC and the audio DMA cannot see, so nothing displayed
@@ -39,10 +41,9 @@ inline constexpr agos::Place BANKS_END = BANKS + BANKS_BYTES;
 
 /// Where this program's data starts: clear of every bank the mapper can place.
 ///
-/// Not of every bank *declared* -- the count a program gives says which banks
+/// Not of every bank *declared*: the count a program gives says which banks
 /// are loaded, not which are addressable, and the card is read by more than one
-/// program. A region below this line is overwritten by the bank loader in
-/// silence, which is how twp65 lost a room's art.
+/// program. The bank loader overwrites a region below this line in silence.
 ///
 /// Rounded up to a 64 KB slot so the addresses stay readable.
 inline constexpr agos::Place DATA = 0x8080000;
@@ -186,9 +187,8 @@ inline constexpr uint8_t ZONE_SLOTS = 8;
 /// largest single figure. One arena of pages (figures.hpp), less the
 /// sound room below.
 ///
-/// The room space is where this came from: 5 MiB reserved for a cache of
-/// decoded backdrops that no code has ever touched. Reserve it again when
-/// something caches rooms; the addresses below are the only statement of it.
+/// A cache of decoded backdrops, should one be written, takes its room from
+/// here; the addresses below are the only statement of it.
 inline constexpr agos::Place FIGURES = 0x8200000;
 inline constexpr uint32_t FIGURES_BYTES = 0x260000 - 0x4000;
 
@@ -197,8 +197,8 @@ inline constexpr uint32_t FIGURES_BYTES = 0x260000 - 0x4000;
 /// Sixteen kilobytes off the top of the arena, 2,048 rows of eight bytes, so
 /// a row's place is a shift. Near memory keeps only a hash of (zone, image)
 /// pointing in here: an index of five near arrays could name 128 figures --
-/// 6% of the arena -- and figures were re-decoded because their name was
-/// gone, not their bytes.
+/// 6% of the arena -- so figures would be re-decoded for want of a name, not
+/// of bytes.
 inline constexpr agos::Place FIGURE_INDEX = FIGURES + FIGURES_BYTES;
 inline constexpr uint32_t FIGURE_INDEX_BYTES = 0x4000; // 16 KiB
 
@@ -276,10 +276,10 @@ static_assert(MAP[0].at >= BANKS_END, "an Attic code bank would overwrite the fi
 /// complement, so a bit stuck either way fails.
 [[nodiscard]] inline bool attic_works() {
     // The map's own tenants, not a list beside it: a probe writes, so an address
-    // the map does not own is one it can corrupt. Probing BASE overwrote a code
-    // bank's first instruction with this pass's own $5A, and the machine ran
-    // garbage. MAP[0].at >= BANKS_END is what makes that unreachable now, and a
-    // tenant added later is probed without anyone remembering to add it.
+    // the map does not own is one it can corrupt: probing BASE would overwrite
+    // a code bank's first instruction and the machine would run garbage.
+    // MAP[0].at >= BANKS_END keeps that unreachable, and a tenant added later is
+    // probed without anyone remembering to add it.
     const auto probe = [](uint8_t i) {
         return i < REGIONS ? MAP[i].at : MAP[REGIONS - 1].at + MAP[REGIONS - 1].bytes - 1;
     };

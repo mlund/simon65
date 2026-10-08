@@ -2,10 +2,9 @@
 ;;; Solutions, copyright 2021. Ported from ca65 to llvm-mos by way of
 ;;; MirageBD's AtticMod fork: the module is read from Attic RAM through 32-bit
 ;;; indirect addressing, while its sample block is copied to `sampledata` in
-;;; chip RAM, because audio DMA's base address is only 24 bits wide
-;;; (iomap.txt:1103-1105).
+;;; chip RAM.
 ;;;
-;;; Unlike both, the driver's zero page is a base page of its own, reached with
+;;; The driver's zero page is a base page of its own, reached with
 ;;; TAB, so its fixed $e0/$f0 pointers cannot collide with the compiler's.
 
 ;;; ---------------------------------------------------------------------------
@@ -438,7 +437,6 @@ pep_bp_works:
 #endif
 
 pep_init:
-;;; Read module at adrPepMOD and set channels up.
 peppitoInit:
 	PEP_ENTER
 
@@ -585,7 +583,6 @@ peppitoInit:
 	rts
 
 pep_play:
-;;; Advance one tick of playback (call at 50 Hz).
 peppitoPlay:
 	PEP_ENTER
 #if PEP_SHOW_RASTER
@@ -937,7 +934,6 @@ peppitoReadSeq:
 	iny
 	lda ptrPepModF+3
 	sta (ptrPepTmpA),y
-;		INY
 
 	__PEP_ADD_PTR16_IMM16 ptrPepTmpA, 0x04
 	__PEP_ADD_PTR32_IMM16 ptrPepModF, 0x0400
@@ -1375,11 +1371,6 @@ pepptioPerformTick:
 ;;; Apply tick effects on all four channels.
 	ldx #0x00
 .LpepptioPerformTick_loop1:
-;		CPX	#$01
-;		BEQ	.LpepptioPerformTick_next
-;		CPX	#$02
-;		BEQ	.LpepptioPerformTick_next
-
 	phx
 
 	stx valPepChan
@@ -1407,8 +1398,6 @@ peppitoClearChanPLRow:
 ;;; Clear pattern loop row count on all channels.
 	ldx #0x00
 .LpeppitoClearChanPLRow_loop1:
-;		PHX
-
 	stx valPepChan
 
 	txa
@@ -1424,7 +1413,6 @@ peppitoClearChanPLRow:
 	lda #0x00
 	sta (ptrPepChan),y
 
-;		PLX
 .LpeppitoClearChanPLRow_next:
 	inx
 	cpx #0x04
@@ -1572,7 +1560,7 @@ peppitoPerformRow:
 
 	beq 1f
 
-1: LDY	#PEP_NOTDATA_valIns
+1:	ldy	#PEP_NOTDATA_valIns
 	sta (ptrPepTmpA),y
 
 	lda valPepTmp0+1
@@ -2051,16 +2039,6 @@ peppitoChanTrigger:
 	ldy #PEP_CHNDATA_valAssIns
 	sta (ptrPepChan),y
 
-/*
-	pha  ; DETECT SAMPLE BEAT!!!
-	asl
-	asl
-	clc
-	adc #0x08
-	sta 0xc000
-	pla
-*/
-
 	asl
 	tax
 	lda idxPepIns0,x
@@ -2300,11 +2278,6 @@ peppitoChanNoteOn:
 	bcc 1f
 	rts
 1:
-;		BNE	.LpeppitoChanNoteOn_start
-;
-;
-;.LpeppitoChanNoteOn_start:
-
 	asl
 	asl
 	asl
@@ -2366,7 +2339,6 @@ peppitoChanNoteOn:
 	adc #0x00
 	sta valPepTmp3+2
 	sta AUDIO_CH0+CHXBADDR+2,x
-;		INY
 
 ;***FIXME:
 ;	Should include PEP_CHNDATA_valSmpOffs

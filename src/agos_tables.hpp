@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Operand tables for both AGOS bytecode machines, Simon 1 CD32 talkie.
 
 // Generated from ScummVM's opcode tables; do not edit.

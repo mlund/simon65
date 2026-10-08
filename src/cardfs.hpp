@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // The game's files off the card, without the hypervisor: mount the volume the
 // machine booted from, find a name in the game's directory, and follow a
 // file's clusters into memory.
@@ -327,6 +329,8 @@ template <typename Card> class Runs {
             Run run;
             agos::far_read(
                 at_ + agos::Place{at} * RUN_BYTES, reinterpret_cast<uint8_t*>(&run), RUN_BYTES);
+            // far_read fills run by DMA, which the analyzer cannot see.
+            // NOLINTNEXTLINE(clang-analyzer-core.UndefinedBinaryOperatorResult)
             if (from >= run.sectors) {
                 from -= run.sectors;
                 continue;

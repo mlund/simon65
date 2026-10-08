@@ -1,11 +1,11 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // The game's text: its own two fonts, rendered into full-colour glyphs.
 //
-// A line of text is a figure. It is laid out exactly as decode_figure lays one
-// -- columns of glyphs, the art one glyph down with a blank at either end --
-// so the placement, the layering and the pool slot it sits in are the ones
-// that already exist, and none of it is written twice. The original does the
-// same thing by another road: it renders speech into a sprite's image and
-// animates the sprite (string.cpp:545-556).
+// A line of text is a figure laid out like decode_figure: columns of
+// glyphs with art one down and blanks on either end. Placement, layering
+// and pool slot all exist; none is written twice. The original renders
+// speech into a sprite image and animates it (string.cpp:545-556).
 
 #pragma once
 
@@ -22,9 +22,9 @@ using agos::Place;
 
 // --- the windows' font -------------------------------------------------------
 //
-// Fixed at six by eight, one bit a pixel and a byte a row, 98 glyphs from
-// character 32 (`windowDrawChar`, charset-fontdata.cpp:2917). This is what
-// the inventory, the verbs and the parchment are drawn in; speech is not.
+// Fixed six by eight, one bit per pixel, one byte per row. 98 glyphs from
+// character 32 (`windowDrawChar`, charset-fontdata.cpp:2917). Inventory, verbs, parchment
+// use it; speech does not.
 
 inline constexpr uint8_t WIN_LINES = 8;
 inline constexpr uint8_t WIN_ADVANCE = 6;
@@ -35,12 +35,11 @@ inline constexpr uint16_t WIN_BYTES = WIN_GLYPHS * WIN_LINES;
 
 // --- the font an actor talks in ----------------------------------------------
 //
-// Ninety characters of 41 bytes from '!': ten rows of four masks, then the
+// Ninety characters from '!', 41 bytes each: ten rows of four masks, then
 // width (`renderStringAmiga`, charset-fontdata.cpp:1101). Three masks are
-// shading, drawn at the script's colour and the two above it; the fourth is an
-// outline, which the original writes into every bitplane -- colour 15 -- so
-// the words read against whatever is behind them. A character steps its width
-// less one, which is what joins neighbouring outlines.
+// shades drawn at the script's colour and the two above; the fourth is an
+// outline in every bitplane (colour 15), so words read over whatever is behind. A character
+// steps its width minus one, joining neighbouring outlines.
 
 inline constexpr uint8_t SAY_ROWS = 10;
 inline constexpr uint8_t SAY_MASKS = 4;
@@ -53,8 +52,7 @@ inline constexpr uint8_t SAY_SPACE = 7; // what anything below '!' steps
 inline constexpr const char* SAY_FILE = "FONTSAY.BIN";
 inline constexpr uint16_t SAY_FONT_BYTES = SAY_CHARS * SAY_BYTES;
 
-/// Whether the speech font has this character at all. Space and the control
-/// codes do not draw; they step and nothing else.
+/// Whether the speech font has this character. Space and control codes step without drawing.
 [[nodiscard]] inline bool draws(uint8_t ch) {
     return ch >= SAY_FIRST_CHAR && ch < SAY_FIRST_CHAR + SAY_CHARS;
 }
@@ -63,8 +61,8 @@ inline constexpr uint16_t SAY_FONT_BYTES = SAY_CHARS * SAY_BYTES;
     return atticmap::SAYFONT + Place{uint8_t(ch - SAY_FIRST_CHAR)} * SAY_BYTES;
 }
 
-/// What a character steps: its stated width less one, so the outline of the
-/// next character lands on this one's (charset-fontdata.cpp:1196).
+/// What a character steps: width minus one, so the next's outline lands
+/// on this one's (charset-fontdata.cpp:1196).
 [[nodiscard]] inline uint8_t step_of(uint8_t ch) {
     const uint8_t width = draws(ch) ? agos::far_read8(say_at(ch) + SAY_BYTES - 1) : SAY_SPACE;
     return uint8_t(width - 1);
@@ -87,9 +85,8 @@ inline constexpr uint16_t SAY_FONT_BYTES = SAY_CHARS * SAY_BYTES;
 }
 
 /// How many characters of @p s fit in @p pixels, broken at a space.
-///
-/// A word longer than the line is not broken: it takes the line and overhangs,
-/// which is what the original does rather than hyphenate.
+/// A word longer than the line takes it and overhangs, as the original does
+/// rather than hyphenate.
 [[nodiscard]] inline uint8_t say_break(const char* s, uint16_t pixels) {
     uint8_t took = 0, at = 0;
     for (;;) {
@@ -133,13 +130,11 @@ inline void paint(
 } // namespace detail
 
 /// Draw @p n characters of the windows' font into the glyphs at @p glyphs.
-///
-/// @p x and @p y are pixels within that grid, @p across its width in cells.
-/// Fixed at six pixels a character, which is what `windowDrawChar` advances
-/// by, and one colour: this font has no shades and no outline.
-///
-/// Read-modify-write, a tile at a time, for the same reason speech is: a line
-/// of text lands where its pixels fall and not on a cell boundary.
+/// @p x, @p y are pixels within that grid, @p across its width in cells.
+/// Fixed at six pixels a character, as `windowDrawChar` advances, and one
+/// colour: this font has no shades and no outline.
+/// Read-modify-write, a tile at a time: text lands where its pixels fall,
+/// not on a cell boundary.
 inline void render_window(
     const char* s, uint8_t n, uint8_t ink, Place glyphs, uint8_t across, uint16_t x, uint16_t y) {
     uint8_t rows[WIN_LINES];
@@ -188,21 +183,17 @@ inline void render_window(
 }
 
 /// Render one line of speech into the glyphs at @p glyphs.
-///
-/// @p top is the line's first pixel row within the figure, so a block of
-/// lines is rendered ten pixels apart, and @p left_margin the pixel it starts
-/// at, which is how a line is centred in its box; @p stride is the column height and the
-/// art starts one glyph down, as it does for a decoded figure. @p colour is
-/// the script's, which the original turns into three shades the same way
-/// (`color * 3 + 1`, string.cpp:551) -- that arithmetic belongs to the caller
-/// that has the script's number. Its high nybble is the palette block: the
-/// original renders a four-plane image (renderStringAmiga,
-/// charset-fontdata.cpp:1101), so every shade and the outline stay within
-/// four bits, and the line's sprite lays its block over them (draw.cpp:107).
-///
-/// Read-modify-write, a tile at a time: ten pixel rows do not divide eight, so
-/// two lines of speech can land in one glyph, and the second must not wipe the
-/// first.
+/// @p top is the line's first pixel row within the figure, so blocks of
+/// lines render ten pixels apart. @p left_margin is the starting pixel
+/// (centring); @p stride is column height (art starts one glyph down).
+/// @p colour is the script's; the caller, which has the script's number,
+/// makes the original's three shades of it (`color * 3 + 1`, string.cpp:551).
+/// Its high nybble is the palette block: the original renders four planes
+/// (renderStringAmiga, charset-fontdata.cpp:1101), so shades and outline stay
+/// within four bits and the line's sprite lays its block over them
+/// (draw.cpp:107). Read-modify-write, a tile at a time: ten rows do not
+/// divide eight, so two lines can share a glyph and the second must not wipe
+/// the first.
 inline void render_say(const char* s,
     uint8_t n,
     uint8_t colour,
@@ -265,9 +256,8 @@ inline void render_say(const char* s,
 }
 
 /// Clear the glyphs a text figure of @p cells by @p stride occupies.
-///
-/// Every glyph, blanks included: a slot holds whatever the last figure in it
-/// left, and a column of text that did not write a cell would wear it.
+/// Every glyph, blanks included: a slot holds the last figure's leftovers,
+/// so a column that did not write a cell would wear them.
 inline void clear(Place glyphs, uint8_t cells, uint8_t stride) {
     far_fill(glyphs, 0, uint16_t(uint16_t(cells) * stride * chipmap::GLYPH_BYTES));
 }

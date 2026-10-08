@@ -1,9 +1,11 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // A zone's figures: decoded into Attic when they are first drawn, copied
 // from there into the glyph pool.
 //
 // Decoding is slow -- 11 frames for one image at worst -- so it happens once
 // per image, and only for the images a scene actually draws; decoding a whole
-// zone at its first sight cost 21 frames inside a tick that has 50. A figure
+// zone at its first sight costs 21 frames inside a tick that has 50. A figure
 // is four-bit cells, and its palette block (vga.cpp:630) is only known when
 // something draws it, so the block goes in the cell's colour byte at
 // placement and the pixels never carry it.
@@ -61,29 +63,21 @@ struct Figure {
     }
 };
 
-/// How many zones keep a decoded figure set at once.
+/// The Attic arena of decoded glyphs, in 256-byte pages.
 ///
 /// A room draws its own zone's sprites and the characters', and a character
-/// lives in a zone of its own -- so one set is not enough, and a sprite from
-/// anywhere else is dropped for want of anything to decode. Six rather than
-/// four because a zone evicted and wanted again costs a card read and a whole
-/// decode, measured at 420 milliseconds inside a tick that has 50; the intro
-/// draws from five zones at once and paid it over and over. A median zone's
-/// glyphs are 66 KiB and the worst 814, so a slot of a megabyte holds any of
-/// them whole.
-///
-/// Named for figures, not shortened to ZONE_SLOTS: atticmap has a ZONE_SLOTS
-/// of its own for zone *scripts*, it is a different number, and this header
-/// includes it.
-/// The Attic arena of decoded glyphs, in 256-byte pages.
+/// lives in a zone of its own, so several zones' figures are kept at once. A
+/// zone evicted and wanted again costs a card read and a whole decode,
+/// measured at 420 milliseconds inside a tick that has 50; the intro draws
+/// from five zones at once. A median zone's glyphs are 66 KiB and the worst
+/// 814.
 ///
 /// One arena, not a slot per zone. A bank is a construct for *code* -- 8 KB
 /// the CPU maps into a window so instructions can be fetched -- and decoded
 /// glyphs are data, reached by DMA at a 28-bit address, so they can lie
-/// anywhere. Dividing this region into six fixed slots bought one thing,
-/// O(1) addressing, and cost a 682 KB ceiling per zone, only six zones at
-/// once, and the re-letting that put one zone's name over another zone's
-/// pixels.
+/// anywhere. Six fixed slots would buy one thing, O(1) addressing, at the
+/// cost of a 682 KB ceiling per zone, only six zones at once, and re-letting
+/// that puts one zone's name over another zone's pixels.
 ///
 /// Pages, as PackedZones does (zonepix.hpp): four glyphs to a page, so a page
 /// is glyph-aligned, an address is a shift rather than a 32-bit multiply, and
@@ -97,8 +91,8 @@ inline constexpr uint16_t NO_PAGE = 0xFFFF;
 /// A power of two, so the ring wraps by a mask. The rows live in the Attic
 /// (atticmap::FIGURE_INDEX), where they cost nothing: near memory is the
 /// scarce thing, and five near arrays could name only 128 figures -- 6% of a
-/// 4 MiB arena -- so figures were re-decoded because their name had been
-/// dropped, not their bytes.
+/// 4 MiB arena -- so figures would be re-decoded for want of a name, not of
+/// bytes.
 inline constexpr uint16_t RING_ROWS = 2048;
 inline constexpr uint16_t NO_ROW = 0xFFFF;
 
@@ -110,12 +104,11 @@ inline constexpr uint8_t ROW_BYTES = 8;
 /// bucket, one kilobyte.
 ///
 /// Two ways rather than direct-mapped, measured rather than chosen.
-/// Direct-mapped is nearly worthless -- 0.88 of
-/// the decodes at a 30% revisit rate and 0.99 at 80% -- because two zones
-/// are live at once, their cel runs collide systematically, and a collision
-/// *thrashes*: each insert throws out the other. A second way absorbs that
-/// pair and reaches 0.81 / 0.51 / 0.51 against a perfect 2,048-row index's
-/// 0.60 / 0.41 / 0.45.
+/// Direct-mapped is nearly worthless -- 0.88 of the decodes at a 30% revisit
+/// rate and 0.99 at 80% -- because two zones are live at once, their cel runs
+/// collide systematically, and a collision *thrashes*: each insert throws out
+/// the other. A second way absorbs that pair and reaches 0.81 / 0.51 / 0.51
+/// against a perfect 2,048-row index's 0.60 / 0.41 / 0.45.
 inline constexpr uint16_t HINT_BUCKETS = 256;
 inline constexpr uint8_t HINT_WAYS = 2;
 
@@ -152,18 +145,15 @@ static_assert(RING_ROWS * ROW_BYTES == atticmap::FIGURE_INDEX_BYTES,
 /// How many figures the pool holds at once.
 ///
 /// Tenants, not slots: a figure takes the glyphs it needs and the pool is
-/// packed end to end. Equal slots meant every figure had to fit an eleventh
-/// of the pool, and 101 of the 624 images in the intro's zones do not --
-/// its title screen is 320 by 85, which is 33,280 bytes against a slot of
-/// 6,016. They were dropped and the intro drew almost nothing.
+/// packed end to end. Equal slots would make every figure fit an eleventh of
+/// the pool, and 101 of the 624 images in the intro's zones do not -- its
+/// title screen is 320 by 85, 33,280 bytes against a slot of 6,016.
 ///
-/// Twenty-four, at eleven bytes apiece in the reserved low memory the VM tables
-/// use, which has the room the fixed region has not. The scene that showed
-/// why wants eight figures a frame and keeps them for many frames; twelve
-/// left the table full of the frame before.
-///
-/// Thirty-two to hold a frame's sprites and its merged composites: about 22
-/// sprites and 5 merged figures in the pot room.
+/// Eleven bytes apiece, in the reserved low memory the VM tables use, which
+/// has the room the fixed region has not. One scene wants eight figures a
+/// frame and keeps them for many frames; twelve tenants left the table full
+/// of the frame before. Thirty-two hold a frame's sprites and its merged
+/// composites: about 22 sprites and 5 merged figures in the pot room.
 inline constexpr uint8_t TENANTS = 32;
 
 /// The pool measured in glyphs, which is what a tenant's place and span are
@@ -220,17 +210,6 @@ class FigureCache {
         built_ = 1;
     }
 
-    /// The figure for this image and block, copied into the pool if it is not
-    /// there already, decoded into the arena if it is not there either.
-    ///
-    /// @p from is the zone's packed pixels, looked up by the caller -- which had
-    /// to ask anyway, to know whether the zone is here at all. The cache keeps
-    /// no pointer into the pixel arena: every fault this class has had was a
-    /// remembered pointer going stale, so it remembers none.
-    ///
-    /// Null if the image has none, if there are no pixels to decode from, or if
-    /// the pool is full of figures this frame has already placed.
-    ///
     /// What the pool already holds and nothing else: no hint, no decode, no
     /// budget. A caller with somewhere to fall back to wants this rather than
     /// want(), which is always_inline and would emit the whole decode path a
@@ -277,6 +256,16 @@ class FigureCache {
         return true;
     }
 
+    /// The figure for this image and block, copied into the pool if it is not
+    /// there already, decoded into the arena if it is not there either.
+    ///
+    /// @p from is the zone's packed pixels, looked up by the caller, which has
+    /// to ask anyway to know whether the zone is here at all. The cache keeps
+    /// no pointer into the pixel arena: a remembered pointer goes stale, and
+    /// that was every fault this class has had.
+    ///
+    /// Null if the image has none, if there are no pixels to decode from, or if
+    /// the pool is full of figures this frame has already placed.
     [[nodiscard]] [[gnu::always_inline]] Figure want(
         uint8_t zone, uint16_t image, uint8_t block, PackedZones::Pixels from) {
         // What the pool already holds, answered without touching the Attic. A
@@ -450,7 +439,7 @@ class FigureCache {
 
     /// One piece of the figure in flight. The row is recorded only when the
     /// figure is whole, so a lookup finds nothing until then and the sprite is
-    /// skipped -- the refusal path that already existed.
+    /// skipped by the usual refusal path.
     [[gnu::always_inline]] void decode_step() {
         // The packed pixels this is reading can be thrown out between frames
         // (zonepix.hpp, hold). The planes cannot see it -- their bounds are still
@@ -542,8 +531,8 @@ class FigureCache {
             if (at == TENANTS) {
                 // Room in the pool but no row to record it in: the figures the table
                 // holds lie elsewhere. Forget one that this frame has not placed and
-                // come round again. Without this the table filled once and every
-                // figure after it was refused -- 130 a second, and an actor drawn as
+                // come round again. Without this the table fills once and every
+                // figure after it is refused -- 130 a second, an actor drawn as
                 // whichever of its parts got in first.
                 at = unclaimed();
                 if (at == TENANTS)
@@ -596,8 +585,8 @@ class FigureCache {
     }
 
   public:
-    /// How many tenants the pool holds, counted rather than tallied: nothing
-    /// resets a tally now that a slot is never re-let, so it would drift into a
+    /// How many tenants the pool holds, counted rather than tallied: a slot is
+    /// never re-let, so nothing would reset a tally and it would drift into a
     /// count of copies in.
     [[nodiscard]] uint16_t held() const {
         uint16_t held = 0;
@@ -635,8 +624,8 @@ class FigureCache {
         return wraps_;
     }
 
-    /// Images this store could not take, by reason: a zone's glyphs outran its
-    /// Attic slot, an image would not decode, or one figure outran the pool.
+    /// Images this store could not take, by reason: an image outran the whole
+    /// arena, would not decode, or outran the pool.
     /// Each is a drop that otherwise looks like an image that never existed.
     [[nodiscard]] uint16_t too_big() const {
         return too_big_;
@@ -739,8 +728,8 @@ class FigureCache {
     }
 
     /// One row. Five far calls rather than a DMA job: eight bytes is well under
-    /// the 23-byte threshold where DMA setup pays for itself; measured here
-    /// the job was also 100 bytes of code larger.
+    /// the 23-byte threshold where DMA setup pays for itself, and measured here
+    /// the job is 100 bytes of code larger.
     [[nodiscard]] static Row read_row(uint16_t row) {
         const Place at = row_at_place(row);
         return {far_read8(at),
@@ -783,8 +772,8 @@ class FigureCache {
 
     /// The oldest rows, while they lie in [from, to).
     ///
-    /// A far read an iteration now, but only on a decode, and each row is
-    /// dropped once.
+    /// A far read an iteration, but only on a decode, and each row is dropped
+    /// once.
     void drop_over(uint16_t from, uint16_t to) {
         while (kept_count_ != 0) {
             const Row head = read_row(kept_first_);
@@ -853,8 +842,8 @@ class FigureCache {
     ///
     /// A backdrop takes 580 ms, but a cel is smaller and wanted far more
     /// often: the intro's actors step a new one every eight ticks, and with
-    /// one decode a frame the first magic act decoded 5 to 20 images a second
-    /// while only one or two layers reached the screen.
+    /// one decode a frame the first magic act decodes 5 to 20 images a second
+    /// while only one or two layers reach the screen.
     ///
     /// Measured with the demand counters, the animation asks for about one cel
     /// a tick that the pool has not got. With one decode in flight the decoder

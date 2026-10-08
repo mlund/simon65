@@ -20,6 +20,11 @@ add_compile_definitions(SIMON_CARD_DIR="${SIMON_CARD_DIR}")
 
 add_executable(simon65mod
   src/main.cpp
+  src/talk.cpp
+  src/saves.cpp
+  src/speech.cpp
+  src/room.cpp
+  src/frame.cpp
   src/modplay.S
   src/transpose.S
   src/laycells.S)
@@ -39,7 +44,7 @@ target_link_options(simon65mod PRIVATE
   -Wl,-T,${CMAKE_CURRENT_SOURCE_DIR}/src/layout.ld)
 set_target_properties(simon65mod PROPERTIES
   LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/layout.ld)
-target_compile_options(simon65mod PRIVATE -Oz)
+target_compile_options(simon65mod PRIVATE -Oz -Wall -Wextra)
 
 # --- the banks ----------------------------------------------------------------
 #
@@ -156,12 +161,17 @@ add_custom_target(card ALL DEPENDS ${CARD_DIR}/SIMON65M.PRG)
 
 # --- lint ---------------------------------------------------------------------
 #
-# Only main.cpp, the one translation unit, is in the compile database; the
-# loader is built by a custom command. HeaderFilterRegex carries the headers.
+# The game's translation units are in the compile database; the loader is
+# built by a custom command. HeaderFilterRegex carries the headers.
 find_program(CLANG_TIDY_EXE NAMES clang-tidy HINTS ${LLVM_MOS}/bin)
 if(CLANG_TIDY_EXE)
   set(TIDY_CMD ${CLANG_TIDY_EXE} -p ${CMAKE_BINARY_DIR}
-      ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/talk.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/saves.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/speech.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/room.cpp
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/frame.cpp)
   add_custom_target(tidy COMMAND ${TIDY_CMD})
 else()
   message(STATUS "tidy target: skipped, no clang-tidy")
@@ -171,7 +181,7 @@ endif()
 #
 # A zip a player can use without the toolchain: the programs and banks in SIMON65/,
 # with extract.py, transfer.py, README and LICENSE.
-set(SIMON65_VERSION "0.1-beta" CACHE STRING "the version a release zip is named for")
+set(SIMON65_VERSION "1.0.0-beta.1" CACHE STRING "the version a release zip is named for")
 add_custom_target(release
   COMMAND ${CMAKE_COMMAND}
           -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR} -DCARD_DIR=${CARD_DIR}

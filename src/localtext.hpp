@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // The strings a room carries, which are not in gameamiga.
 //
 // An id under $8000 is a global and GameDb has it. Above that it is local:

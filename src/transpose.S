@@ -1,3 +1,5 @@
+; SPDX-License-Identifier: GPL-3.0-or-later
+
 ; Four bitplanes into four-bit glyph bytes: the figure decoder's transpose.
 ;
 ; extern "C" void chunky16_packed4(const uint16_t *word, uint8_t *out)
@@ -12,9 +14,9 @@
 ; of its two planes -- the same four pixels -- so a plane byte's nybbles are
 ; paired across planes before indexing.
 ;
-; In C++ this was about 1,500 cycles a line; most of it went on the plane
-; words shifted in place and the general nybble arithmetic. Here the bytes are
-; read where they lie.
+; In C++ this costs about 1,500 cycles a line, mostly shifting the plane words
+; in place and general nybble arithmetic. Here the bytes are read where they
+; lie.
 ;
 ; ABI (llvm-mos): word in __rs1, out in __rs2. A leaf: A, X, Y and
 ; __rc2-__rc10 only, all caller-saved. Z is the output index, nought on entry

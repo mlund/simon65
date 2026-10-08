@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // SIMON65.PRG: the program the machine runs, which loads the one that plays.
 //
 // Two programs, because a program cannot blank the screen before it is
@@ -17,33 +19,26 @@
 
 namespace {
 
-/// Where the player is linked, and where it is entered: the same address,
-/// since it carries no BASIC line of its own.
+/// Where the player is linked and entered (the same address; no BASIC line).
 constexpr uint16_t PLAYER_LINKED = 0x2000;
 constexpr uint16_t PLAYER_ENTRY = PLAYER_LINKED;
 
-/// Where its bytes go, which is two lower. A PRG opens with two bytes saying
-/// where it loads and Hyppo's loadfile writes them like any others, so the
-/// file goes down two bytes early and the header falls into the gap -- below
-/// $2000, which is in neither image.
+/// Where its bytes go, two lower. A PRG's header (load address) is written
+/// like any other byte, so the file goes early and the header falls in the
+/// gap below $2000, in neither image.
 constexpr uint32_t PLAYER_AT = PLAYER_LINKED - 2;
 
-/// The player, by the name the card holds it under. Eight and three: Hyppo
-/// matches nothing longer, whatever the directory's long-name entries say.
+/// The player, by its FAT name. 8.3: Hyppo matches nothing longer.
 constexpr const char PLAYER_FILE[] = "SIMON65M.PRG";
 
-/// Above the hardware stack and below both images: the few instructions that
-/// do the load cannot live in either image, because the load overwrites
-/// $2000. The filename sits in the page after it, for the same reason and one
-/// more -- Hyppo takes a name by page.
+/// Above the stack and below both images (the load overwrites $2000).
+/// The filename sits after, for the same reason (Hyppo takes a name by page).
 constexpr uint16_t RUNS_AT = 0x0400;
 constexpr uint16_t NAME_AT = 0x0500;
 
-/// Load the file Hyppo has been named with to @p at, then go to @p entry.
-///
-/// Hyppo's loadfile is DOS function $36 through the trap at $D640, with the
-/// destination in X, Y and Z. The map is cleared before the jump so the
-/// player starts as it expects to.
+/// Load the file Hyppo is named with to @p at, then jump to @p entry.
+/// Hyppo's loadfile ($36) is triggered at $D640 with the destination in X, Y, Z.
+/// The map is cleared before the jump so the player starts as it expects.
 struct Stub {
     uint8_t code[22];
 };
@@ -75,9 +70,8 @@ struct Stub {
     }};
 }
 
-/// Every audio-DMA channel off, and the master switch with it. A reset leaves
-/// these as the last program left them, which is the noise a freshly loaded
-/// machine makes.
+/// Every audio-DMA channel off, and the master switch. A reset leaves them
+/// as the last program did (the noise a freshly loaded machine makes).
 void silence() {
     *reinterpret_cast<volatile uint8_t*>(0xD711) = 0;
     auto* const channel = reinterpret_cast<volatile uint8_t*>(0xD720);
@@ -87,8 +81,7 @@ void silence() {
     }
 }
 
-/// The display off and the border black: what is on screen is the ROM's text
-/// and whatever the loader left of it.
+/// The display off and the border black: ROM text and the loader's leftovers.
 void darken() {
     *reinterpret_cast<volatile uint8_t*>(0xD020) = 0; // border
     *reinterpret_cast<volatile uint8_t*>(0xD021) = 0; // background
@@ -102,10 +95,9 @@ int main() {
     darken();
     silence();
 
-    // The name goes in a page this program owns, not in $0100 (the hardware
-    // stack): every call between naming the file and loading it pushes a return
-    // address over the name. A name overwritten by a return address makes the
-    // load fail silently.
+    // Name in this program's page, not $0100 (the stack): calls between
+    // naming and loading push return addresses over it, and the load then
+    // fails silently.
     auto* const name = reinterpret_cast<uint8_t*>(NAME_AT);
     uint8_t i = 0;
     for (; PLAYER_FILE[i] != '\0'; ++i)

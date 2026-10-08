@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // The code banks, checked against the region the map set aside for them.
 //
 // The platform's defaults are a 24 KB stride, which puts bank 3 at $20000 and

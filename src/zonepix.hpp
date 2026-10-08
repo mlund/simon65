@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Every zone's packed pixels, held in Attic so the card is read once.
 
 #pragma once
@@ -105,10 +107,10 @@ class PackedZones {
 
     /// Remember that the card has not got this zone, so nothing asks again.
     ///
-    /// A row of no bytes, which find() already reads as "no pixels" -- so the
+    /// A row of no bytes, which find() already reads as "no pixels", so the
     /// negative needs no field of its own. Without it a zone whose file will
-    /// not read is asked for once a frame for ever, which pins the main loop to
-    /// a failing card access.
+    /// not read is asked for every frame, pinning the main loop to a failing
+    /// card access.
     STORE_BANKED void note_absent(uint8_t zone) {
         if (knows(zone))
             return;
@@ -169,9 +171,9 @@ class PackedZones {
     uint16_t emptied_ = 0;
 };
 
-/// Whether a zone's pixels are kept at all. Off, every ask reads the card as
-/// it always did, and everything else about the arena stays in place -- which
-/// is how to tell a fault in the caching from a fault in what surrounds it.
+/// Whether a zone's pixels are kept at all. Off, every ask reads the card and
+/// everything else about the arena stays in place, which tells a fault in the
+/// caching from a fault in what surrounds it.
 inline constexpr bool CACHE_PIXELS = true;
 
 /// The one arena. In .bss, not in the reserved low memory the VM tables use:

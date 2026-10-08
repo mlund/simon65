@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // The item database out of gameamiga: item records, their room or object
 // payload, and the global string table.
 
@@ -15,6 +17,9 @@ namespace agos {
 /// because `int` is 16 bits on the target, where `at[0] << 8` overflows a
 /// signed int for any byte above 127.
 [[nodiscard]] inline uint16_t be16(const uint8_t* at) {
+    // Most callers' bytes come from far_read, which fills them by DMA; the
+    // analyzer cannot see that and calls them garbage.
+    // NOLINTNEXTLINE(clang-analyzer-core.UndefinedBinaryOperatorResult)
     return static_cast<uint16_t>(static_cast<uint16_t>(at[0]) << 8 | at[1]);
 }
 

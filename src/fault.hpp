@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // What a VM can fail at, and the hook that records it.
 //
 // A code rather than a string: a literal lives in the bank that raised it, and

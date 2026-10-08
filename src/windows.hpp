@@ -1,14 +1,13 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // The text windows a script defines, picks, clears and writes into.
 //
-// Six of them in the whole release, each defined once (101), and two carry
-// nearly every line: window 3 numbers a conversation's choices and window 4
-// lists them, which is 1,479 of the 1,490 changes (102). Two inks are ever
-// set (160). So this is a table and a cursor rather than a window system --
-// the shape the data asks for, measured rather than assumed.
-//
-// A window's x and width are cells, its y is pixels from the top of the
+// Six in the release, each defined once (101). Windows 3 and 4, a
+// conversation's numbers and choices, take 1,479 of the 1,490 changes (102),
+// and two inks are ever set (160): so a table and a cursor, not a window
+// system. A window's x and width are cells, its y pixels from the top of the
 // screen and its height rows (charset.cpp:287). All six sit below the
-// picture, which is what chipmap::PANEL holds.
+// picture, in chipmap::PANEL.
 
 #pragma once
 
@@ -89,9 +88,11 @@ class Windows {
 
     /// Write a line and start a new one, which is what 63 does.
     ///
-    /// A line that would run past the window's width is not wrapped here: the
-    /// game's own lines are choices and numbers, and the one place it needs a
-    /// break it puts one in the string.
+    /// A line longer than the window holds goes on in the next row, broken
+    /// mid-word at a count of characters as the engine breaks it
+    /// (windowPutChar, charset.cpp:269; textMaxLength, window.cpp:75). A long
+    /// conversation choice takes two rows, and the script numbers the choices
+    /// knowing it.
     /// Pinned into whichever bank its one caller sits in. CODE_BANK banks only
     /// what carries an attribute, and at 1,300 bytes this is the largest thing
     /// the fixed region had no reason to hold (banks.hpp).
@@ -103,17 +104,23 @@ class Windows {
         TextWindow& one = window_[current_];
         if (!one.real())
             return;
-        if (one.row >= one.rows)
-            scroll(one);
-        text::render_window(s,
-            n,
-            one.ink,
-            chipmap::PANEL,
-            ACROSS,
-            uint16_t(uint16_t(one.x) * chipmap::CELL_LINES + one.column),
-            uint16_t(one.y - PANEL_TOP + uint16_t(one.row) * chipmap::CELL_LINES));
-        one.column = 0;
-        ++one.row;
+        const uint8_t most = uint8_t(one.cells + one.cells / 3); // cells * 8 / 6
+        do {
+            if (one.row >= one.rows)
+                scroll(one);
+            const uint8_t part = n > most && most != 0 ? most : n;
+            text::render_window(s,
+                part,
+                one.ink,
+                chipmap::PANEL,
+                ACROSS,
+                uint16_t(uint16_t(one.x) * chipmap::CELL_LINES + one.column),
+                uint16_t(one.y - PANEL_TOP + uint16_t(one.row) * chipmap::CELL_LINES));
+            s += part;
+            n = uint8_t(n - part);
+            one.column = 0;
+            ++one.row;
+        } while (n != 0);
     }
 
     [[nodiscard]] const TextWindow& at(uint8_t which) const {

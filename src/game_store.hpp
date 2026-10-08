@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // The game's files, and which of them are in memory.
 //
 // The residency rules here are the engine's, not this port's: gameamiga's

@@ -1,27 +1,20 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Reaching memory a pointer cannot.
 //
-// A pointer is sixteen bits here and the data is not: the subroutine heap sits
-// at $28000, the zone scripts in Attic, and the largest zone script is 65,468
-// bytes on its own. So the streams the two VMs walk are addressed by value
-// rather than pointed at, and every access goes through here.
+// A pointer is sixteen bits and the data is not: the subroutine heap sits at
+// $28000, the zone scripts in Attic, and one zone script alone is 65,468
+// bytes. So the VMs' streams are addressed by value, and every access comes
+// through here: `lda [zp],z` on the machine, a buffer standing in for memory
+// on the host, so a test uses the target's own addresses.
 //
-// On the machine that is one instruction, `lda [zp],z`. On the host it reaches
-// a buffer standing in for the machine's memory, so a test exercises the very
-// addresses the target will.
-//
-// Blocks move through DMAgic rather than the CPU, target only.
-//
-// A job of no bytes is refused here rather than passed on: DMAgic reads a
-// count of nought as 65,536 (gs4510.vhdl:5956-5957), so a length that happens
-// to be zero moves 64 KB over whatever follows the destination and reports
-// nothing. Where the length is a constant the compiler drops the test, so only
-// a caller whose length can really be zero pays for it.
-//
-// A job does not cross a megabyte either. Each end's megabyte is an option of
-// its own ($81 and $85) and the address wraps inside it unless option $01 says
-// otherwise, which the SDK's job never sets. A transfer that straddles the
-// line silently corrupts, appearing as noise: one decode's pixels garbled from
-// the boundary point, drawing an invalid rectangle (mega65-common/include/dma.hpp:49).
+// Blocks move by DMAgic, target only, under two guards. A job of no bytes is
+// refused, as DMAgic reads nought as 65,536 (gs4510.vhdl:5956-5957) and would
+// overwrite 64 KB unreported; a constant length drops the test. And a job
+// never crosses a megabyte: each end's megabyte is an option of its own ($81,
+// $85) and the address wraps inside it unless option $01 is set, which the
+// SDK's job never does. A straddling transfer garbles silently
+// (mega65-common/include/dma.hpp:49).
 
 #pragma once
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 // The SD controller, one sector at a time, into any 28-bit address.
 //
 // The point of reading the card ourselves is that this polls: the raster
@@ -5,7 +7,8 @@
 // whole-file read cannot, because no interrupt at all is dispatched while the
 // CPU is in hypervisor mode (gs4510.vhdl:6833).
 //
-// Ported from mega65-freezer's src/sdcard.c (GPL-3), with the border flicker
+// Ported from mega65-freezer's src/sdcard.c, itself from the MEGA65 freeze
+// menu (github.com/MEGA65/mega65-freezemenu, GPL-3), with the border flicker
 // dropped and writes cut to the one sector a save needs.
 
 #pragma once

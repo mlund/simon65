@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // The verb bar: the box under the pointer lit and named, the verb chosen, and
 // a click turned into a command.
 //

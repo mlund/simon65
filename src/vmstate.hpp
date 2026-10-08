@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // The VMs and the database they walk, placed rather than left to the linker.
 //
 // One copy of each, at namespace scope: they are far too big for a stack frame

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Raster Rewrite Buffer cells: what one screen row is made of.
 //
 // A row is a list of cells the VIC walks left to right, each either a glyph to
@@ -5,9 +7,9 @@
 // screen RAM and two to colour RAM; they live in different memories but mean
 // nothing apart, so they are built together and moved out separately.
 //
-// The encodings here are hardware facts, cited to the core. twp65 established
-// them on a real machine (core v920413) and this reads the same VHDL rather
-// than trusting either of us: `viciv.vhdl` line numbers throughout.
+// The encodings are hardware facts, read from the core rather than trusted
+// from twp65, which established them on a real machine (core v920413):
+// `viciv.vhdl` line numbers throughout.
 
 #pragma once
 
@@ -129,9 +131,9 @@ struct Cell {
 /// Cells a row holds, fetched whether used or not -- a row cannot stop early.
 ///
 /// **A row's cost is the fetch, not the paint.** CHRCOUNT is global, so park
-/// tokens are fetched at 8 cycles each. At 144 cells, row 0 lost buffer
-/// readiness; measured on hardware with CHRCOUNT, 128 and below do not. DBLRR
-/// at V200 smears instead.
+/// tokens are fetched at 8 cycles each. Measured on hardware, row 0 is not
+/// ready in time at 144 cells; at 128 and below it is. DBLRR at V200 smears
+/// instead.
 ///
 /// Demand through the intro reaches at least 124 including the close.
 inline constexpr uint8_t ROW_CELLS = 128;
@@ -275,7 +277,8 @@ class RowList {
             return false;
 
         // Every byte of a parked token repeats, so the tail fills as block
-        // moves instead of strided writes. Rebuilding the screen was 2x faster.
+        // moves instead of strided writes: rebuilding the screen measured 2x
+        // faster.
         const Cell park = tail();
         for (uint16_t i = at_; i < ROW_BYTES; ++i) {
             screen_[i] = park.screen[0];

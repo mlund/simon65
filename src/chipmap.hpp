@@ -1,13 +1,15 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Where everything lives in chip RAM.
 //
-// Said once, because the alternative is every file restating it and the
-// restatements drifting. Each region is a tenant with a ceiling of its own, and
-// every one of those ceilings is silent when broken: a glyph fetched from the
-// wrong number, a sample that plays nothing, a display list the VIC reads past.
+// Said once, so no file restates it and no restatement drifts. Each region is
+// a tenant with a ceiling of its own, and every ceiling is silent when broken:
+// a glyph fetched from the wrong number, a sample that plays nothing, a display
+// list the VIC reads past.
 //
 // The order is fixed and the regions are contiguous from $10000 up, so the
-// figure pool is what is left rather than a number chosen -- which is what makes
-// a region that grows a compile error instead of a room nobody can draw.
+// figure pool is what is left rather than a number chosen, and a region that
+// grows is a compile error instead of a room nobody can draw.
 
 #pragma once
 
@@ -114,12 +116,11 @@ inline constexpr uint32_t SPEECH_BYTES = 4096;
 static_assert(SPEECH == SIMON_SPEECH && SPEECH % SPEECH_BYTES == 0,
     "the macro and the map disagree about the speech ring");
 
-/// A spare page. The DMA job lists this once held are built on the stack, and
-/// the only sprite pointer is the cursor's, inside CURSOR; named and empty so
-/// the bytes are not taken by whoever notices them first. Chip RAM is the
-/// scarce map -- the figure pool is what is left of it -- so what does not
-/// need the VIC or audio DMA goes to the Attic instead, as the sprite census
-/// does (atticmap::DIAGNOSTICS).
+/// A spare page: DMA job lists are built on the stack, and the only sprite
+/// pointer is the cursor's, inside CURSOR. Named and empty so the bytes are not
+/// taken by whoever notices them first. Chip RAM is scarce -- the figure pool
+/// is what is left of it -- so what needs neither the VIC nor audio DMA goes to
+/// the Attic, as the sprite census does (atticmap::DIAGNOSTICS).
 inline constexpr uint32_t SCRATCH = SPEECH + SPEECH_BYTES;
 inline constexpr uint32_t SCRATCH_BYTES = 2048;
 
@@ -187,22 +188,20 @@ inline constexpr uint32_t CURSOR = CHIP_BYTES - CURSOR_BYTES;
 /// The figures on screen now, refilled as animation frames change.
 ///
 /// Speech text is a figure: cells of glyphs placed and layered like any other,
-/// keyed by zone zero (not a real zone). No private region because it uses the
-/// pool like other figures.
+/// keyed by zone zero (not a real zone), so it needs no region of its own.
 ///
 /// Not decoded per zone: one zone holds 66,304 bytes median, 814,080 worst.
-/// This is sized by the fifteen largest live at once: 18,432 median, 52,864
-/// worst (zone 6, full-colour cells). Figures are four-bit cells now, widths
-/// are multiples of 16, so each is exactly half at 9,216 and 26,432.
+/// Sized by the fifteen largest live at once: 18,432 median, 52,864 worst
+/// (zone 6, full-colour cells). Figures are four-bit cells, widths multiples
+/// of 16, so each is exactly half: 9,216 and 26,432.
 inline constexpr uint32_t FIGURES = PANEL + PANEL_BYTES;
 inline constexpr uint32_t FIGURES_BYTES = CURSOR - FIGURES;
 
 /// The item records of gameamiga, which measure 7,522 bytes. Near, because
 /// the game writes item state back into them and they are walked at random;
 /// the subroutine block behind them stays where the file landed. A map fact,
-/// though the linker is what reserves it. The strings live
-/// far (atticmap::GAMETEXT); what stays near for them is GameDb's index of
-/// offsets into that block.
+/// though the linker reserves it. The strings live far (atticmap::GAMETEXT);
+/// near holds only GameDb's index of offsets into that block.
 inline constexpr uint16_t DATABASE_BYTES = 7680;
 static_assert(DATABASE_BYTES >= 7522, "gameamiga's item records do not fit");
 
@@ -224,10 +223,10 @@ inline constexpr uint16_t PANEL_GLYPH = PANEL / GLYPH_BYTES;
 /// The blank every row ends with, left at colour nought: in full colour a
 /// pixel of nought is transparent and shows $D021.
 ///
-/// One past the panel's grid, and not one past the picture as it was: that
-/// glyph is the panel's first cell, so the moment a window wrote a line at
-/// its top left the character appeared down the right edge of all
-/// twenty-five rows. Nothing writes this one.
+/// One past the panel's grid, not one past the picture: that glyph is the
+/// panel's first cell, so a window writing at its top left would show the
+/// character down the right edge of all twenty-five rows. Nothing writes this
+/// one.
 inline constexpr uint16_t BLANK_GLYPH = static_cast<uint16_t>(PANEL_GLYPH + PANEL_CELLS);
 
 /// Where the map starts naming things: below this is the program.

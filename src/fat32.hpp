@@ -1,10 +1,13 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
 // FAT32 as the card stores it: where a partition begins, where a volume's FATs
 // and data begin, and how a name in a directory becomes a sector number.
 //
 // Arithmetic over a 512-byte sector and nothing else -- no card, no I/O, no
 // state -- so the format can be settled on the host and only the reading left
-// to the machine. Ported from mega65-freezer's src/fat32.c (GPL-3, as this
-// tree is), extended where it only ever searched the root directory.
+// to the machine. Ported from mega65-freezer's src/fat32.c, itself from the
+// MEGA65 freeze menu (github.com/MEGA65/mega65-freezemenu, GPL-3), extended
+// where it only ever searched the root directory.
 
 #pragma once
 

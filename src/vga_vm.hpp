@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // The animation interpreter: the sprite list in draw order, the timer list
 // that drives it, and the three tables scripts park themselves on.
 
@@ -241,9 +243,7 @@ class VgaVm {
         release(wait_sync_, ident);
         if (script_ == nullptr)
             return;
-        script_->set_last_sync(ident); // vga.cpp:805
-        if (ident == script_->vga_wait_for())
-            script_->set_vga_wait_for(0);
+        script_->synced(ident);
     }
 
     /// Every sprite gone, every rendezvous with it, which is what a script's
@@ -251,7 +251,7 @@ class VgaVm {
     /// redraw heartbeat is the one timer that stays.
     void reset_sprites() {
         if (script_ != nullptr)
-            script_->set_last_sync(0); // vga.cpp:1088
+            script_->forget_syncs();
         for (uint8_t at = 0; at < MAX_SPRITES; ++at)
             sprites_[at] = VgaSprite();
         for (uint8_t at = 0; at < MAX_SLEEPERS; ++at)

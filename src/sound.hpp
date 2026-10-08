@@ -1,28 +1,22 @@
-// The game's audio: tunes staged for the MOD driver on channels 0-2, and speech and
-// effects on channel 3.
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+// The game's audio: tunes on channels 0-2, speech and effects on channel 3.
 //
-// --- speech and effects ---
+// Speech and effects share one 4 KB ring in chip RAM, as audio DMA cannot see the
+// Attic (iomap.txt:1103), and one channel, as the CD32 plays both on its channel 3
+// (runit2). The hardware loops the ring; `tick`, from the raster interrupt, refills
+// each page the play position has left: speech's next page by DMA, or silence, with
+// the effect's page added and clipped as ScummVM's mixer does (sound.cpp:503). The
+// CD32 adds the same way (runit2 0x1ccce) but lets the sum wrap, and an effect at
+// full scale then clicks. DMAgic cannot add (gs4510.vhdl:6037).
 //
-// Speech and effects play through one 4 KB ring in chip RAM, because audio DMA cannot see
-// the Attic where they are (iomap.txt:1103), and through one channel, because the CD32
-// plays both on its channel 3 (runit2). The hardware loops the ring; `tick`, from the
-// raster interrupt, refills every page the play position has left. A page is the
-// speech's next page, by DMA, or silence; then the effect's next page is added into it,
-// clipped as ScummVM's mixer does (sound.cpp:503). The CD32 adds the same way (runit2
-// 0x1ccce) but lets the sum wrap, and many effects peak at full scale: each overflow is a
-// click. DMAgic cannot add (its mix command is unimplemented, gs4510.vhdl:6037).
+// The refill runs a ringful behind, so a ring of nothing stops the channel and a
+// ring without speech ends the voice (IF_SPEECH); while speech is still being read
+// off the card, a missing page is silence, not the end. From the interrupt, because
+// a zone load holds up the main loop 119-292 ms against the ring's 186 ms at 22 kHz.
 //
-// The refill runs a ringful behind the playback, so pages filled without something are
-// pages played without it: a whole ring of nothing stops the channel, and a ring without
-// speech ends the voice (IF_SPEECH). While the main loop is still reading speech off the
-// card, a missing page is silence but not the end.
-//
-// From the interrupt because a zone load holds up the main loop for 119-292 ms against
-// the ring's 186 ms at 22 kHz. Music keeps channels 0-2 (modplay.S), as the CD32's does.
-//
-// The arbitration is the CD32's (runit2 0x1cd4a, 0x1f36a): new speech cuts
-// the old and leaves an effect playing; a new effect cuts the old effect and
-// never speech.
+// Arbitration is the CD32's (runit2 0x1cd4a, 0x1f36a): new speech cuts the old and
+// leaves an effect playing; a new effect cuts the old effect, never speech.
 
 #pragma once
 
@@ -413,7 +407,7 @@ using namespace tune_detail;
 
 /// Whether the driver answers. The tunes come later, each when the game
 /// first asks for it.
-[[nodiscard]] static bool tune_store_works() {
+[[nodiscard]] inline bool tune_store_works() {
     return PEP_CALL_R(pep_bp_works) == BASE_PAGE_PROBE;
 }
 
@@ -423,7 +417,7 @@ using namespace tune_detail;
 /// it running, and the next one hears it as noise the moment audio DMA is
 /// enabled. Four channels of sixteen bytes from $D720 (modplay.S:25-31), and
 /// the flags byte is where the enable is.
-static void tune_store_silence() {
+inline void tune_store_silence() {
     auto* const enable = reinterpret_cast<volatile uint8_t*>(0xD711);
     *enable = 0;
     auto* const channel = reinterpret_cast<volatile uint8_t*>(0xD720);
@@ -443,7 +437,7 @@ inline bool tune_loaded = false;
 constexpr uint8_t SAMPLES_AT_BYTES = 4;
 
 /// Play the module at @p base.
-static void tune_store_select(uint32_t base) {
+inline void tune_store_select(uint32_t base) {
     PEP_CALL(pep_stop);
 
     // Header and patterns are read in place from Attic; only the samples have to
@@ -462,7 +456,7 @@ static void tune_store_select(uint32_t base) {
 }
 
 /// One driver tick, from the raster interrupt.
-static void tune_store_tick() {
+inline void tune_store_tick() {
     if (tune_loaded)
         PEP_CALL(pep_play);
 }

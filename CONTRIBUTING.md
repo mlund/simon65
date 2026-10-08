@@ -27,7 +27,6 @@ on a MEGA65 (or xemu, for what does not depend on timing).
 - Comments explain *why*, not *what*.
 - A format claim cites its source: `engines/agos/<file>:<line>` in ScummVM for the
   game, `iomap.txt` or the core's VHDL for MEGA65 hardware.
-- Low byte count is a goal: quote the size change of a full rebuild.
 - Never commit game data.
 
 ## Using AI coding assistants

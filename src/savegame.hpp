@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // The game's own save file, in ScummVM's Simon 1 layout, so a state saved
 // here loads there and back. Simon 1 inherits AGOSEngine_Elvira2's saveGame
 // and loadGame (agos.h:1823, :1890); the fields below follow those two

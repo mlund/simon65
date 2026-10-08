@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Stacked sprites merged into one figure, so a row pays for their union once.
 //
 // Busy rooms stack sprites in one place -- the pot room's gnome is five -- and
@@ -106,7 +108,7 @@ struct Box {
 /// A merged figure kept from the frame before, known by a checksum of its
 /// members' keys. Two running sums, so a change to any one field always shows
 /// in the first; a multiply is a library call here, and full copies of the
-/// members did not fit the bank.
+/// members do not fit the bank.
 struct Kept {
     uint32_t sum;
     uint16_t id;
@@ -182,9 +184,9 @@ class Compositor {
                 continue;
 
             // Each member's figure and layer, which decide its pixels and place.
-            // The layer as it stands, so a stack that walks is merged again; keying
-            // on places within the group saved those, but cost about 500 bytes of a
-            // bank with 500 free, and walking was in the 0.2% measured anyway.
+            // The layer as it stands, so a stack that walks is merged again. Keying
+            // on places within the group would save those but costs about 500 bytes
+            // of a bank with 500 free, and walking falls in the 0.2% measured.
             uint16_t first = 0, second = 0;
             for (uint8_t i = h; i < count; ++i)
                 if (head_[i] == h) {
@@ -440,7 +442,7 @@ class Compositor {
     }
 
     /// Every DMA move the merge makes, in one place: far_copy is inline, and
-    /// five copies of its megabyte split did not fit the bank.
+    /// five copies of its megabyte split do not fit the bank.
     COMPOSITE_BANKED static void move(Place from, Place to, uint16_t n) {
         agos::far_copy(from, to, n);
     }

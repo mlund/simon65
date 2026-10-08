@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // A zone's NNN1.out: the palettes, and the two tables that locate a sprite's
 // animation or image script.
 

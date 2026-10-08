@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // The boxes a click is tested against (107 ADD_BOX, 65 ADD_TEXT_BOX).
 //
 // A box is a rectangle on screen, an item, and the verb that item answers

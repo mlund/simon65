@@ -6,6 +6,13 @@ new interpreter for the game's AGOS bytecode, written in LLVM-MOS C++ with Scumm
 disc, and the data directory on it (with `gameamiga`, `runit2`, `icon.pkd` and the
 `*.out`, `*tune`, `*simon` and `*Effects` files).
 
+## Features
+
+- AGA graphics and animations running unmodified in full colour mode (FCM)
+- MOD soundtracks
+- Unmodified speech and sound effects
+- Four save game slots
+
 ## From a release
 
 Download `simon65-<version>.zip` from the releases page and unzip it. With Python 3:
@@ -31,7 +38,7 @@ If the screen stays black switch the MEGA65 off and on rather than resetting it.
 
 ## From source
 
-You need the llvm-mos compiler and a patched llvm-mos SDK (upstream on its way) with the
+You need my patched llvm-mos SDK (upstream on its way) with the
 [`mega65-banked-nokernal` platform](https://github.com/mlund/llvm-mos-sdk/tree/mega65-banked-v3),
 CMake 3.20 or newer, Ninja or Make, and Python 3. CMake finds the
 toolchain through `-DLLVM_MOS=...` and `-DMEGA65_SDK=...`, or environment variables of
@@ -55,8 +62,13 @@ release` makes the release zip.
 | F2 / F4 / F6 / F8 | save slot 0 / 1 / 2 / 3 (Shift + F1, F3, ...) |
 | F | fast-forward on and off |
 
-Slot 0 is the one the game's own postcard saves and loads. Saving and loading wait for
-the pointer to show; the border flashes to say whether it worked.
+Slot 0 is the one the game's own postcard saves and loads; the border flashes.
+
+## Thanks to
+
+- The ScummVM project
+- The LLVM-MOS project
+- The friendly MEGA65 community
 
 ## Contributing
 
@@ -64,5 +76,4 @@ See `CONTRIBUTING.md`.
 
 ## Licence
 
-GPL-3.0-or-later; see `LICENSE`. A release's programs are built from the tagged source of
-the same version.
+GPL-3.0-or-later; see `LICENSE`.

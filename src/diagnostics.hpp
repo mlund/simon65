@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // What a run leaves for a monitor to read over serial, so it can be judged without a
 // screen: counters of what the interpreter asked for and could not have, a ring of
 // what wrote each arena row, and a snapshot of a frame's sprite list.
@@ -193,6 +195,22 @@ inline constexpr uint16_t RUNNING = 0xB0FF;
 
 extern volatile uint16_t counts[SLOTS];
 
+/// Add @p n to the running counter @p slot.
+[[gnu::always_inline]] inline void count_add(uint8_t slot, uint16_t n) {
+    counts[slot] = static_cast<uint16_t>(counts[slot] + n);
+}
+
+/// One more on the running counter @p slot.
+[[gnu::always_inline]] inline void count_one(uint8_t slot) {
+    count_add(slot, 1);
+}
+
+/// Raise the peak @p slot to @p value when @p value is higher.
+[[gnu::always_inline]] inline void note_peak(uint8_t slot, uint16_t value) {
+    if (value > counts[slot])
+        counts[slot] = value;
+}
+
 } // namespace report
 
 // --- arena row trace ----------------------------------------------------------------------
@@ -333,6 +351,9 @@ inline bool armed = false;
     header[TICK_AT + 1] = static_cast<uint8_t>(tick >> 8);
     header[COUNT_AT] = count;
     header[LAYERS_AT] = layers;
+    // The DMA job keeps header's address, but the copy is over before this
+    // returns; the analyzer sees only the pointer left behind.
+    // NOLINTNEXTLINE(clang-analyzer-core.StackAddressEscape)
     agos::far_write(atticmap::DIAGNOSTICS, header, HEADER_BYTES);
 }
 

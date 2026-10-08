@@ -1,22 +1,24 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // The VIC-IV in full colour mode, showing one room.
 
 #pragma once
 
 #include "chipmap.hpp"
+#include "diagnostics.hpp"
 #include "figures.hpp"
 #include "placed.hpp"
 #include "rrb.hpp"
 
 #include <mega65.h>
 
-namespace {
 namespace display_detail {
 
 /// The row under construction. In ram_low because ram_fixed is where the code
 /// lives and has no 488 bytes to spare, and because this is working memory the
 /// image never carries -- rows are rebuilt once an actor moves.
-[[gnu::section(".vmstate"), gnu::used]] uint8_t screen_row[rrb::ROW_BYTES];
-[[gnu::section(".vmstate"), gnu::used]] uint8_t colour_row[rrb::ROW_BYTES];
+[[gnu::section(".vmstate"), gnu::used]] inline uint8_t screen_row[rrb::ROW_BYTES];
+[[gnu::section(".vmstate"), gnu::used]] inline uint8_t colour_row[rrb::ROW_BYTES];
 
 constexpr uint8_t DEN = 0x10; // $D011 bit 4; the SDK names no mask
 
@@ -44,7 +46,6 @@ constexpr uint8_t RASTER_MSB_BITS = 0x07;
 constexpr uint8_t RASCMP_KEEP = 0x38;
 
 } // namespace display_detail
-} // namespace
 
 using namespace display_detail;
 
@@ -60,6 +61,10 @@ using namespace display_detail;
 /// LAYERS_DROPPED. Beyond this, layers must get cheaper, not more numerous.
 inline constexpr uint8_t LAYERS_MAX = 24;
 static_assert(LAYERS_MAX <= agos::TENANTS, "a frame must be able to place every layer it draws");
+
+/// What is on screen this frame, in the sprite list's order.
+inline Placed layers[LAYERS_MAX];
+inline uint8_t layer_count = 0;
 
 /// What a row cost at its worst, and how many layers would not fit.
 ///
@@ -89,8 +94,7 @@ inline uint16_t closes_failed = 0;
             (void)cells.run(uint16_t(FIRST_GLYPH + uint16_t(row) * CELLS_ACROSS), CELLS_ACROSS);
         else
             // Below the picture is the panel, which the text windows write into: a
-            // glyph of nought paints nothing, so an empty panel shows the border as a
-            // blank row did.
+            // glyph of nought paints nothing, so an empty panel shows the border.
             (void)cells.run(
                 uint16_t(PANEL_GLYPH + uint16_t(row - PICTURE_ROWS) * CELLS_ACROSS), CELLS_ACROSS);
         for (uint8_t list = 0; list < rrb::LISTS; ++list) {
@@ -107,15 +111,15 @@ inline uint16_t closes_failed = 0;
 /// that is priority order -- so a later one covers an earlier one, which is
 /// what the engine's own back-to-front walk does.
 ///
-/// In the bank both its callers are in. CODE_BANK banks only what carries the
-/// attribute, so this had landed back in the fixed region -- a kilobyte of it,
-/// for a function draw_frame_banked and display_begin_banked are the only two
-/// ways into. A chip bank runs at full speed; only the Attic one is slower.
+/// In the bank both its callers, draw_frame_banked and display_begin_banked,
+/// are in: CODE_BANK banks only what carries the attribute, so without its own
+/// this kilobyte lands in the fixed region. A chip bank runs at full speed;
+/// only the Attic one is slower.
 ///
 /// Only what follows the prefix is built, and the park tokens after the close
 /// go out as DMA fills: the backdrop cells never change between frames, and
 /// the tail is one value repeated, which a fill moves faster than a loop.
-DISPLAY_BANKED static void display_row_over(
+DISPLAY_BANKED inline void display_row_over(
     uint8_t list, uint8_t row, const Placed* over, uint8_t count) {
     rrb::RowList cells(screen_row, colour_row, rrb::PREFIX_CELLS);
     for (uint8_t i = 0; i < count; ++i) {
@@ -211,9 +215,89 @@ inline constexpr uint8_t FETCH_LEAD_LINES = 2;
     VICIV.rstcmp_msb = uint8_t((VICIV.rstcmp_msb & RASCMP_KEEP) | uint8_t(PICTURE_END_LINE >> 8));
 }
 
+/// Frames since boot, counted by the raster interrupt. The music runs from that
+/// interrupt so a card read cannot gap it; work that outlasts a frame is timed
+/// against this, which a raster alone cannot do.
+extern "C" volatile uint16_t frames;
+
+/// `frames`, read whole: it is two bytes the interrupt writes, so a read that
+/// straddles a carry is read again.
+[[nodiscard]] [[gnu::noinline]] inline uint16_t frames_now() {
+    uint16_t was, now;
+    do {
+        was = frames;
+        now = frames;
+    } while (was != now);
+    return now;
+}
+
+/// The physical raster line, read so the high bits cannot change between the
+/// two bytes (iomap.txt:219-220, $D052 and $D053.0-2).
+[[gnu::always_inline]] inline uint16_t raster_line() {
+    uint8_t high, low;
+    do {
+        high = VICIV.fn_raster_msb & RASTER_MSB_BITS;
+        low = VICIV.fn_raster_lsb;
+    } while ((VICIV.fn_raster_msb & RASTER_MSB_BITS) != high);
+    return static_cast<uint16_t>(high << 8 | low);
+}
+
+/// Physical raster lines in a frame (pixel_driver.vhdl:580).
+inline constexpr uint16_t LINES_A_FRAME = 624;
+
+/// Raster lines since @p line_began, @p frames_began frames ago: modulo a
+/// frame, plus whole frames from the counter past the first, which may be one
+/// out. For work that is usually shorter than a frame.
+[[gnu::always_inline]] inline uint16_t lines_since(uint16_t frames_began, uint16_t line_began) {
+    const auto crossed = static_cast<uint16_t>(frames_now() - frames_began);
+    uint16_t lines = static_cast<uint16_t>(raster_line() + LINES_A_FRAME - line_began);
+    if (lines >= LINES_A_FRAME)
+        lines = static_cast<uint16_t>(lines - LINES_A_FRAME);
+    if (crossed > 1)
+        lines = static_cast<uint16_t>(lines + (crossed - 1) * LINES_A_FRAME);
+    return lines;
+}
+
+/// When something started: the frame and the raster line.
+struct Stamp {
+    uint16_t frame;
+    uint16_t line;
+};
+
+/// The time now, for timing what follows. Out of line, one copy for every
+/// bank: inline at each site it cost the display bank 564 bytes. Four bytes,
+/// so it comes back in registers.
+[[nodiscard]] [[gnu::noinline]] inline Stamp stamp() {
+    return {frames_now(), raster_line()};
+}
+
+/// Add the raster lines since @p began to the running counter @p slot.
+[[gnu::noinline]] inline void count_since(uint8_t slot, Stamp began) {
+    report::count_add(slot, lines_since(began.frame, began.line));
+}
+
+/// The list the draw has built and wants shown, plus one; nought is none. The
+/// draw builds into the list not shown and the raster interrupt swaps them, as
+/// the CD32 flips its bitmaps in vertical blank (runit2 FUN_0001d566).
+inline volatile uint8_t swap_to = 0;
+
+/// Whether anything has written to the panel since the rows were last built.
+inline uint8_t panel_changed = 0;
+
+/// Which rows of each display list carried a figure when that list was last
+/// built, so a row its figures have left is put back.
+inline uint8_t was_touched[rrb::LISTS][chipmap::SCREEN_ROWS] = {};
+
+/// Rows [@p first, @p end) changed under every figure: both lists owe them.
+inline void rows_owed(uint8_t first, uint8_t end) {
+    for (uint8_t list = 0; list < rrb::LISTS; ++list)
+        for (uint8_t row = first; row < end; ++row)
+            was_touched[list][row] = 1;
+}
+
 /// Put the VIC into full colour mode and lay out the screen. Leaves the
 /// display off; call display_show() once there is something to look at.
-static void display_begin() {
+inline void display_begin() {
     // Without this the VIC-IV registers are SID mirrors and every write below
     // goes somewhere harmless and wrong.
     VICIV.key = VIC4_KEY_VICIV_A;
@@ -265,14 +349,14 @@ static void display_begin() {
 /// Both halves of blanking: the border over everything, and a character count
 /// of nought. Clearing DEN alone leaves the raster buffer showing the last
 /// picture drawn.
-static void display_blank() {
+inline void display_blank() {
     VICIV.ctrl1 = VICIV.ctrl1 & uint8_t(~(DEN | RASTER_MSB));
     display_arm_tick();
     VICIV.chrcount = 0;
     VICIV.scrnptr_mb &= ~VIC4_CHRCOUNT_MASK;
 }
 
-static void display_show() {
+inline void display_show() {
     VICIV.chrcount = rrb::ROW_CELLS;
     VICIV.scrnptr_mb &= ~VIC4_CHRCOUNT_MASK;
     VICIV.ctrl1 = (VICIV.ctrl1 & ~RASTER_MSB) | DEN;

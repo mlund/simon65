@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // The inventory: icons of what an item holds, drawn into a panel window from
 // ICONS.BIN (icon.pkd unpacked by mkicons.py), a box apiece, and the arrows
 // that scroll them a row at a time.

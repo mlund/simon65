@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // A figure as the row builder lays it: glyphs, place and shape, and the one
 // function that makes it from where the game says a figure goes.
 //
@@ -70,19 +72,19 @@ struct Placed {
 /// (initialVideoWindows_Simon, agos.cpp:723). The art starts one glyph down
 /// its column, and covers one screen row more than its art when it is shifted.
 ///
-/// Clipped here and not where a row is laid, because none of it depends on the
-/// row: a figure spans up to seventeen of them and the row builder runs
-/// twenty-five times a frame, where this runs once a figure. Working in
-/// eight-pixel units rather than pixels is what makes it free: x arrives in
-/// them, and a cell is one (text) or two (a four-bit figure).
+/// Clipped here, not where a row is laid, because none of it depends on the
+/// row: a figure spans up to seventeen rows and the row builder runs
+/// twenty-five times a frame, where this runs once a figure. Eight-pixel units
+/// make it free: x arrives in them, and a cell is one (text) or two (a
+/// four-bit figure).
 ///
 /// Clipping is by whole cells, and a four-bit cell straddling either edge is
 /// kept, so nothing on the picture is lost. Its position is exact either way:
 /// GOTOX is in pixels.
 ///
 /// `cells` of nought means nothing of it is on screen; the caller drops it
-/// rather than spending one of the twelve layer slots on a figure that would
-/// be refused on every row.
+/// rather than spend one of the twelve layer slots on a figure every row
+/// would refuse.
 ///
 /// @p flags and @p colour are the cells' two colour bytes, as rrb::layer()
 /// lays them.
@@ -118,9 +120,9 @@ struct Placed {
     // only its own offset.
     //
     // Mirrored, the screen's leftmost cell is the art's *last* column, so the
-    // columns trimmed off the left are trimmed off the far end instead and the
-    // lowest-numbered one still visible is what the row starts from. The row
-    // walks back from the other end; both spellings hand it the same edge.
+    // columns trimmed off the left come off the far end and the row starts from
+    // the lowest-numbered one still visible, walking back from the other end.
+    //
     // Wholly above the picture is as gone as wholly off one side.
     if (y + fig.rows * chipmap::CELL_LINES <= 0)
         wide = 0;

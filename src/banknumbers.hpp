@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Which code bank holds what, as plain macros an assembly file can read too.
 
 #pragma once

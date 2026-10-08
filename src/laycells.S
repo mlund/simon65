@@ -1,3 +1,5 @@
+; SPDX-License-Identifier: GPL-3.0-or-later
+
 ; A figure's cells for one screen row, into a row under construction.
 ;
 ; extern "C" void lay_cells(uint8_t *screen, uint8_t *colour, uint8_t cells,

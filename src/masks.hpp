@@ -1,11 +1,13 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // Masked sprites (video opcode 61): the room's clean picture cut to a mask's
 // shape, as full-colour glyphs a layer can lay.
 //
 // The engine draws a mask by copying its clean background over the frame
-// wherever the mask's image is set (runit2 0x1e5b0; vc61, vga_s1.cpp:225). The backdrop here
-// already is that clean background -- sprites never write into it -- so the cut,
-// laid at the mask's place in the sprite list, covers exactly the sprites drawn
-// before it.
+// wherever the mask's image is set (runit2 0x1e5b0; vc61, vga_s1.cpp:225).
+// The backdrop here is that clean background -- sprites never write into it --
+// so the cut, laid at the mask's place in the sprite list, covers exactly the
+// sprites drawn before it.
 
 #pragma once
 

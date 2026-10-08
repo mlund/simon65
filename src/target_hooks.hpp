@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 // What the VMs reach for that the machine has to answer: files off the card, the
 // palette and its fades, the pointer and sound, and the counts each leaves in
 // report (diagnostics.hpp).
@@ -312,9 +314,7 @@ extern "C" void window_image_banked();
 /// DRAW, doing what its name says.
 ///
 /// The decoders are in the room's bank and this runs in the animation VM's,
-/// so it goes through the door rather than calling across (banks.hpp). It used
-/// to post into four slots that another pass replayed, which capped a room at
-/// four paints for the life of the program -- the count was never reset.
+/// so it goes through the door rather than calling across (banks.hpp).
 inline void vga_paint(
     uint8_t zone, uint16_t image, uint8_t block, int16_t x, int16_t y, uint16_t flags) {
     paint_zone = zone;
