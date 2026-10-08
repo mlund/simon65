@@ -11,7 +11,8 @@ disc, and the data directory on it (with `gameamiga`, `runit2`, `icon.pkd` and t
 - AGA graphics and animations running unmodified in full colour mode (FCM)
 - MOD soundtracks
 - Unmodified speech and sound effects
-- Four save game slots
+- Four save game slots; slot file format compatible with ScummVM
+- Runs on hardware and in Xemu
 
 ## From a release
 
