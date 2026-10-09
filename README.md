@@ -69,7 +69,8 @@ Slot 0 is the one the game's own postcard saves and loads; the border flashes.
 
 - The ScummVM project
 - The LLVM-MOS project
-- The friendly MEGA65 community
+- The helpful MEGA65 community
+- MirageBD for attic MOD player
 
 ## Contributing
 
